@@ -12,18 +12,23 @@ public actor JSONJournal: CleanJournaling {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
         let data = try Data(contentsOf: fileURL)
         if data.isEmpty { return [] }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode([CleanReport].self, from: data)
+        do {
+            return try JSONDecoder().decode([CleanReport].self, from: data)
+        } catch is DecodingError {
+            // Corrupt journal: keep it for inspection and start fresh so appends keep working.
+            let base = fileURL.deletingPathExtension().lastPathComponent
+            let aside = fileURL.deletingLastPathComponent().appendingPathComponent(
+                "\(base).corrupt-\(Int(Date().timeIntervalSince1970 * 1000)).json")
+            try FileManager.default.moveItem(at: fileURL, to: aside)
+            return []
+        }
     }
 
     public func append(_ report: CleanReport) throws {
         var all = try load()
         all.insert(report, at: 0)
         if all.count > Self.cap { all.removeLast(all.count - Self.cap) }
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(all)
+        let data = try JSONEncoder().encode(all)
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: fileURL, options: .atomic)

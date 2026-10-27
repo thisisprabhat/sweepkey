@@ -16,7 +16,7 @@ private let gitAvailable: Bool = {
 private func runGit(_ args: [String], in dir: URL) throws {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-    p.arguments = ["-c", "user.name=t", "-c", "user.email=t@t"] + args
+    p.arguments = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"] + args
     p.currentDirectoryURL = dir
     p.standardOutput = FileHandle.nullDevice
     p.standardError = FileHandle.nullDevice
@@ -54,6 +54,39 @@ private func isBlocked(_ v: SafetyVerdict) -> Bool { if case .blocked = v { true
                 #expect(isBlocked(await verdict(g, cand(URL(fileURLWithPath: p)), roots: [root])), "\(p)")
             }
         }
+    }
+
+    @Test func trailingSlashAndDirectoryFlagCannotDefeatEquality() async throws {
+        try await withTempDir { dir in
+            let users = dir.appendingPathComponent("Users")
+            let home = users.appendingPathComponent("me")
+            try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+            let g = SafetyGuard(home: URL(fileURLWithPath: home.path + "/", isDirectory: true))
+            // Scan root is an ancestor of home; candidate is home itself in various spellings.
+            for spelling in [home.path, home.path + "/", home.path + "//"] {
+                for isDir in [true, false] {
+                    let c = cand(URL(fileURLWithPath: spelling, isDirectory: isDir), project: users)
+                    #expect(isBlocked(await verdict(g, c, roots: [URL(fileURLWithPath: users.path + "/", isDirectory: true)])),
+                            "\(spelling) \(isDir)")
+                }
+            }
+            // Candidate equal to a scan root with differing directory flag.
+            let c = cand(URL(fileURLWithPath: users.path, isDirectory: false))
+            #expect(isBlocked(await verdict(g, c, roots: [URL(fileURLWithPath: users.path, isDirectory: true)])))
+        }
+    }
+
+    @Test func systemPrefixIsCaseInsensitive() async throws {
+        let g = SafetyGuard(home: URL(fileURLWithPath: "/nonexistent-home"))
+        for p in ["/system/library/x", "/USR/lib", "/applications/Foo.app"] {
+            #expect(isBlocked(await verdict(g, cand(URL(fileURLWithPath: p)), roots: [URL(fileURLWithPath: "/")])), "\(p)")
+        }
+    }
+
+    @Test func deleteUnderUsrLocalBlocked() async throws {
+        let g = SafetyGuard(home: URL(fileURLWithPath: "/nonexistent-home"))
+        let c = cand(URL(fileURLWithPath: "/usr/local/Cellar"), kind: .globalCache)
+        #expect(isBlocked(await verdict(g, c, roots: [])))
     }
 
     @Test func symlinkBlocked() async throws {
@@ -168,7 +201,6 @@ private func isBlocked(_ v: SafetyVerdict) -> Bool { if case .blocked = v { true
             let proj = root.appendingPathComponent("app")
             try write(1, to: proj.appendingPathComponent("dist/tracked.js"))
             try write(1, to: proj.appendingPathComponent("build/ignored.o"))
-            try write(1, to: proj.appendingPathComponent(".gitignore"))
             try "build/\n".write(to: proj.appendingPathComponent(".gitignore"), atomically: true, encoding: .utf8)
             try runGit(["init", "-q"], in: proj)
             try runGit(["add", "."], in: proj)
@@ -179,6 +211,25 @@ private func isBlocked(_ v: SafetyVerdict) -> Bool { if case .blocked = v { true
                 == .blocked("Contains files tracked by git"))
             let build = proj.appendingPathComponent("build")
             #expect(await verdict(g, cand(build, project: proj), roots: [root]) == .allowed)
+        }
+    }
+
+    private struct FailingGitShell: ShellRunning {
+        func run(_ executable: String, arguments: [String], currentDirectory: URL?, input: Data?, timeout: Duration)
+            async throws -> ShellResult {
+            ShellResult(exitCode: 128, stdout: "", stderr: "fatal: broken")
+        }
+    }
+
+    @Test(.enabled(if: gitAvailable)) func gitFailureFailsClosed() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let proj = root.appendingPathComponent("app")
+            try write(1, to: proj.appendingPathComponent("build/o"))
+            try runGit(["init", "-q"], in: proj)
+            let g = SafetyGuard(gitShell: FailingGitShell(), home: dir.appendingPathComponent("h"))
+            #expect(await verdict(g, cand(proj.appendingPathComponent("build"), project: proj), roots: [root])
+                == .blocked("Could not verify git status"))
         }
     }
 }

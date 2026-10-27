@@ -2,6 +2,7 @@ import Foundation
 
 public struct SafetyGuard: SafetyEvaluating {
     private let git: GitClient
+    private let tracked: GitTrackedCheck
     private let home: URL
     private let pinnedProjects: [URL]
     private let activeDirectories: @Sendable () async -> [URL]
@@ -10,11 +11,13 @@ public struct SafetyGuard: SafetyEvaluating {
 
     public init(
         git: GitClient = .init(),
+        gitShell: ShellRunning = ProcessShellRunner(),
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         pinnedProjects: [URL] = [],
         activeDirectories: @escaping @Sendable () async -> [URL] = { [] }
     ) {
         self.git = git
+        self.tracked = GitTrackedCheck(shell: gitShell)
         self.home = home
         self.pinnedProjects = pinnedProjects
         self.activeDirectories = activeDirectories
@@ -41,15 +44,20 @@ public struct SafetyGuard: SafetyEvaluating {
         let path = url.path
         let homeURL = Self.resolved(home)
         let roots = scanRoots.map(Self.resolved)
+        // Path strings (no trailing slash, case-folded) so directory flags and case cannot defeat equality.
+        let key = path.lowercased()
+        let rootKeys = Set(roots.map { $0.path.lowercased() })
         let command = isCommand(c)
 
         // 1. Root, home, scan root, system prefix.
-        if path == "/" || url == homeURL || roots.contains(url) {
+        if path == "/" || key == homeURL.path.lowercased() || rootKeys.contains(key) {
             return .blocked("Protected path")
         }
-        for prefix in Self.systemPrefixes where path == prefix || path.hasPrefix(prefix + "/") {
+        for prefix in Self.systemPrefixes {
+            let p = prefix.lowercased()
+            guard key == p || key.hasPrefix(p + "/") else { continue }
             // Tool-managed locations under /usr/local are legitimate targets for commands.
-            if command, prefix == "/usr", path == "/usr/local" || path.hasPrefix("/usr/local/") { continue }
+            if command, prefix == "/usr", key == "/usr/local" || key.hasPrefix("/usr/local/") { continue }
             return .blocked("System path")
         }
 
@@ -76,9 +84,12 @@ public struct SafetyGuard: SafetyEvaluating {
 
         // 6. Git-tracked files (project artifacts only).
         if c.kind == .projectArtifact, !command,
-           let repo = await git.repositoryRoot(containing: c.url),
-           await git.hasTrackedFiles(at: c.url, repositoryRoot: repo) {
-            return .blocked("Contains files tracked by git")
+           let repo = await git.repositoryRoot(containing: c.url) {
+            switch await tracked.status(of: c.url, repositoryRoot: repo) {
+            case .tracked: return .blocked("Contains files tracked by git")
+            case .error: return .blocked("Could not verify git status")
+            case .untracked: break
+            }
         }
 
         // 7. Danger.

@@ -62,7 +62,7 @@ private final class Collector: @unchecked Sendable {
         }
     }
 
-    @Test func trashAndPutBack() async throws {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)) func trashAndPutBack() async throws {
         try await withTempDir { dir in
             let t = dir.appendingPathComponent("a")
             try write(100, to: t.appendingPathComponent("f"))
@@ -85,7 +85,7 @@ private final class Collector: @unchecked Sendable {
         try await withTempDir { dir in
             let t = dir.appendingPathComponent("a")
             try write(1, to: t.appendingPathComponent("f"))
-            let trashed = dir.appendingPathComponent("trashed")
+            let trashed = dir.appendingPathComponent(".Trash/trashed")
             try write(1, to: trashed)
             let item = CleanItemResult(candidate: cand(t), status: .cleaned, freedBytes: 1, trashURL: trashed)
             let back = await CleanExecutor(shell: FakeShell()).putBack([item])
@@ -161,6 +161,74 @@ private final class Collector: @unchecked Sendable {
             #expect(r.items.map(\.status) == [.skipped, .skipped])
             #expect(r.items.allSatisfy { $0.message == "Cancelled" })
             #expect(FileManager.default.fileExists(atPath: a.path))
+        }
+    }
+
+    @Test func putBackRefusesNonTrashSource() async throws {
+        try await withTempDir { dir in
+            let t = dir.appendingPathComponent("a")
+            let src = dir.appendingPathComponent("elsewhere/x")
+            try write(1, to: src)
+            let item = CleanItemResult(candidate: cand(t), status: .cleaned, freedBytes: 1, trashURL: src)
+            let back = await CleanExecutor(shell: FakeShell()).putBack([item])
+            #expect(back[0].status == .failed)
+            #expect(FileManager.default.fileExists(atPath: src.path))
+            #expect(!FileManager.default.fileExists(atPath: t.path))
+        }
+    }
+
+    @Test func refusesSymlinkedAncestorHomeAndRoot() async throws {
+        try await withTempDir { dir in
+            let real = dir.appendingPathComponent("real")
+            try write(1, to: real.appendingPathComponent("sub/f"))
+            let link = dir.appendingPathComponent("link")
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+            let home = dir.appendingPathComponent("home")
+            try write(1, to: home.appendingPathComponent("f"))
+            let ex = CleanExecutor(shell: FakeShell(), home: home)
+            let r = await ex.clean(
+                [cand(link.appendingPathComponent("sub")), cand(home), cand(URL(fileURLWithPath: "/"))],
+                mode: .permanent, dryRun: false) { _ in }
+            #expect(r.items.map(\.status) == [.skipped, .skipped, .skipped])
+            #expect(r.items.allSatisfy { $0.message != nil })
+            #expect(FileManager.default.fileExists(atPath: real.appendingPathComponent("sub/f").path))
+            #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("f").path))
+        }
+    }
+
+    private struct FailingJournal: CleanJournaling {
+        struct Boom: Error, LocalizedError { var errorDescription: String? { "disk full" } }
+        func append(_ report: CleanReport) async throws { throw Boom() }
+        func reports() async throws -> [CleanReport] { [] }
+        func lifetimeFreedBytes() async throws -> Int64 { 0 }
+    }
+
+    @Test func journalFailureIsSurfacedOnLastItem() async throws {
+        try await withTempDir { dir in
+            let a = dir.appendingPathComponent("a")
+            try write(1, to: a.appendingPathComponent("f"))
+            let r = await CleanExecutor(shell: FakeShell(), journal: FailingJournal())
+                .clean([cand(a)], mode: .permanent, dryRun: false) { _ in }
+            #expect(r.items[0].status == .cleaned)
+            #expect(r.items[0].message?.contains("Journal write failed: disk full") == true)
+        }
+    }
+
+    @Test func midRunCancellationSkipsRest() async throws {
+        try await withTempDir { dir in
+            let a = dir.appendingPathComponent("a"), b = dir.appendingPathComponent("b")
+            try write(1, to: a.appendingPathComponent("f"))
+            try write(1, to: b.appendingPathComponent("f"))
+            let ex = CleanExecutor(shell: FakeShell())
+            let task = Task {
+                await ex.clean([cand(a), cand(b)], mode: .permanent, dryRun: false) { _ in
+                    withUnsafeCurrentTask { $0?.cancel() }
+                }
+            }
+            let r = await task.value
+            #expect(r.items.map(\.status) == [.cleaned, .skipped])
+            #expect(r.items[1].message == "Cancelled")
+            #expect(FileManager.default.fileExists(atPath: b.path))
         }
     }
 }

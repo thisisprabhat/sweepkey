@@ -4,13 +4,16 @@ public struct CleanExecutor: CleanExecuting {
     private let shell: ShellRunning
     private let sizer: SizeCalculator
     private let journal: CleanJournaling?
+    private let home: URL
 
     public init(
         shell: ShellRunning = ProcessShellRunner(), sizer: SizeCalculator = .init(),
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
         journal: CleanJournaling? = nil
     ) {
         self.shell = shell
         self.sizer = sizer
+        self.home = home
         self.journal = journal
     }
 
@@ -37,9 +40,20 @@ public struct CleanExecutor: CleanExecuting {
                 completed: index + 1, total: candidates.count, currentTitle: c.title, freedBytes: freed))
         }
 
-        let report = CleanReport(
+        var report = CleanReport(
             startedAt: started, finishedAt: Date(), mode: mode, dryRun: dryRun, items: items)
-        if !dryRun, let journal { try? await journal.append(report) }
+        if !dryRun, let journal {
+            do {
+                try await journal.append(report)
+            } catch {
+                // Surface the failure without changing the contract: note it on the last item.
+                if let last = report.items.indices.last {
+                    let note = "Journal write failed: \(error.localizedDescription)"
+                    let old = report.items[last].message
+                    report.items[last].message = old.map { "\($0); \(note)" } ?? note
+                }
+            }
+        }
         return report
     }
 
@@ -55,6 +69,15 @@ public struct CleanExecutor: CleanExecuting {
         if c.url.isSymlink { return CleanItemResult(candidate: c, status: .skipped, message: "Is a symlink") }
         guard fm.fileExists(atPath: c.url.path) else {
             return CleanItemResult(candidate: c, status: .skipped, message: "No longer exists")
+        }
+        // Defence in depth: never act through a symlinked ancestor, or on `/` or home.
+        let standard = c.url.standardizedFileURL
+        let resolved = standard.resolvingSymlinksInPath()
+        if standard.path != resolved.path {
+            return CleanItemResult(candidate: c, status: .skipped, message: "Path passes through a symlink")
+        }
+        if standard.path == "/" || standard.path.lowercased() == home.standardizedFileURL.resolvingSymlinksInPath().path.lowercased() {
+            return CleanItemResult(candidate: c, status: .skipped, message: "Refusing to delete root or home")
         }
         let size = sizer.allocatedSize(of: c.url)
         do {
@@ -98,7 +121,10 @@ public struct CleanExecutor: CleanExecuting {
             guard let trash = item.trashURL else { continue }
             var r = item
             let dest = item.candidate.url
-            if fm.fileExists(atPath: dest.path) || dest.isSymlink {
+            if !trash.pathComponents.contains(".Trash") {
+                r.status = .failed
+                r.message = "Not in Trash"
+            } else if fm.fileExists(atPath: dest.path) || dest.isSymlink {
                 r.status = .failed
                 r.message = "Destination exists"
             } else {
