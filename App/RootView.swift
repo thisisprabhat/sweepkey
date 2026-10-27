@@ -5,7 +5,16 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String { rawValue.capitalized }
+    var title: LocalizedStringKey {
+        switch self {
+        case .dashboard: "Dashboard"
+        case .projects: "Projects"
+        case .caches: "Caches"
+        case .vault: "Vault"
+        case .history: "History"
+        case .rules: "Rules"
+        }
+    }
 
     var symbolName: String {
         switch self {
@@ -20,9 +29,11 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 struct RootView: View {
+    @Environment(AppModel.self) private var model
     @State private var selection: SidebarItem? = .dashboard
 
     var body: some View {
+        @Bindable var model = model
         NavigationSplitView {
             List(SidebarItem.allCases, selection: $selection) { item in
                 Label(item.title, systemImage: item.symbolName)
@@ -30,9 +41,32 @@ struct RootView: View {
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 210)
         } detail: {
-            let item = selection ?? .dashboard
-            ContentUnavailableView(item.title, systemImage: item.symbolName, description: Text("Coming soon."))
+            switch selection ?? .dashboard {
+            case .dashboard: DashboardView()
+            case .projects: ProjectsView()
+            case .caches: CachesView()
+            case .vault: VaultView()
+            case .history: HistoryView()
+            case .rules: RulesView()
+            }
         }
-        .frame(minWidth: 800, minHeight: 500)
+        .frame(minWidth: 900, minHeight: 560)
+        .sheet(isPresented: $model.isCleanSheetPresented) {
+            CleanFlowSheet()
+        }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { model.lastError != nil }, set: { if !$0 { model.lastError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.lastError ?? "")
+        }
+        .task {
+            await model.loadJournal()
+            model.scanIfNeeded()
+        }
     }
+}
+
+#Preview {
+    RootView().environment(AppModel())
 }
