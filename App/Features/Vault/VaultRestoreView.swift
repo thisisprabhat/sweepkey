@@ -1,10 +1,13 @@
 import CleanerKit
+import OSLog
 import SwiftUI
 
 struct VaultRestoreView: View {
     @Environment(AppModel.self) private var model
     @State private var pendingEncrypted: URL?
     @State private var password = ""
+    @State private var hasSavedPassword = false
+    private static let log = Logger(subsystem: "com.prabhatkumar.Cleaner", category: "keychain")
 
     private enum StrategyKind: Hashable { case original, gitRemote }
 
@@ -29,6 +32,16 @@ struct VaultRestoreView: View {
                 password = ""
                 pendingEncrypted = nil
             }
+            if hasSavedPassword {
+                Button("Forget Saved Password", role: .destructive) {
+                    if let url = pendingEncrypted {
+                        VaultKeychain.delete(account: url.standardizedFileURL.resolvingSymlinksInPath().path)
+                    }
+                    hasSavedPassword = false
+                    password = ""
+                    pendingEncrypted = nil
+                }
+            }
             Button("Cancel", role: .cancel) { password = ""; pendingEncrypted = nil }
         } message: {
             Text("Enter the password for this encrypted image.")
@@ -41,8 +54,16 @@ struct VaultRestoreView: View {
             // A saved password is unlocked with Touch ID; cancelling falls back to typing it.
             let account = url.standardizedFileURL.resolvingSymlinksInPath().path
             Task {
-                let saved = await Task.detached { try? VaultKeychain.load(account: account) }.value
-                if let saved, await model.openVault(url, password: saved) { return }
+                let outcome = await Task.detached { () -> Result<String?, Error> in
+                    Result { try VaultKeychain.load(account: account) }
+                }.value
+                switch outcome {
+                case .success(let saved):
+                    if let saved, await model.openVault(url, password: saved) { return }
+                case .failure(let error):
+                    Self.log.error("Keychain read failed: \(error.localizedDescription, privacy: .public)")
+                }
+                hasSavedPassword = VaultKeychain.exists(account: account)
                 pendingEncrypted = url
             }
         } else {

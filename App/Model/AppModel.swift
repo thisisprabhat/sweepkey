@@ -74,6 +74,8 @@ final class AppModel {
     var isFindingSecrets = false
     var hasSearchedSecrets = false
     var vaultWarnings: [String] = []
+    /// Finder warnings from the vault-before-clean pass; shown with the clean result.
+    var vaultBeforeCleanWarnings: [String] = []
     var exportState: ExportState = .idle
     var openedVault: OpenedVault?
     var restoreStrategy: RestoreStrategy = .originalPaths
@@ -110,6 +112,7 @@ final class AppModel {
         let new = dirs.filter { !existing.contains($0.path) }
         guard !new.isEmpty else { return }
         settings.scanRoots.append(contentsOf: new)
+        if !scanState.isScanning { scan() }
     }
 
     // MARK: Rules

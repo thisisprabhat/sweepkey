@@ -30,6 +30,7 @@ extension AppModel {
         let items = cleanableSelected
         guard !items.isEmpty else { return }
         cleanPhase = .running(CleanProgress(completed: 0, total: items.count, currentTitle: "", freedBytes: 0))
+        vaultBeforeCleanWarnings = []
 
         if settings.requireVaultBeforeClean, !dryRun {
             cleanPhase = .running(CleanProgress(
@@ -72,6 +73,7 @@ extension AppModel {
             includeUncommittedWork: settings.vault.includeUncommittedWork, scanContents: settings.vault.scanContents)
         do {
             let found = try await collectSecrets(options)
+            vaultBeforeCleanWarnings = found.warnings
             let files = found.files.filter { file in
                 let source = file.sourceURL.standardizedFileURL.resolvingSymlinksInPath()
                 return affected.contains { source.isDescendant(of: $0) }

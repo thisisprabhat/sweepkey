@@ -33,6 +33,16 @@ struct CleanResultView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            if !model.vaultBeforeCleanWarnings.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Vault export warnings (secrets were still exported by pattern)",
+                          systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    ForEach(model.vaultBeforeCleanWarnings, id: \.self) {
+                        Text($0).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if !failures.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("\(failures.count) failed", systemImage: "exclamationmark.triangle.fill")
