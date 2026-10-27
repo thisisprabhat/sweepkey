@@ -13,7 +13,7 @@ extension AppModel {
         isFindingSecrets = true
         defer { isFindingSecrets = false }
         do {
-            let result = try await collectSecrets(resolvedVaultOptions)
+            let result = try await collectSecrets(vaultOptions)
             findings = result.files
             vaultWarnings = result.warnings
             findingsSelection = Set(findings.map(\.id))
@@ -23,12 +23,9 @@ extension AppModel {
         }
     }
 
-    private var resolvedVaultOptions: VaultCollectOptions {
-        var options = vaultOptions
-        options.roots = AppLogic.resolve(options.roots)
-        options.excludedPaths = AppLogic.resolve(options.excludedPaths)
-        return options
-    }
+    /// What the Vault screen collects: the current settings (read every time, so a first-launch
+    /// setup or a later settings change is picked up) with the session overrides on top. Resolved.
+    var vaultOptions: VaultCollectOptions { vaultOverrides.applied(to: settings) }
 
     /// Uses the warning-aware finder when the services provide one.
     func collectSecrets(_ options: VaultCollectOptions) async throws -> (files: [SecretFile], warnings: [String]) {

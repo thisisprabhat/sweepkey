@@ -1,25 +1,43 @@
+import CleanerKit
 import SwiftUI
 
+/// Session overrides for the Vault screen. Every control shows the settings value until changed;
+/// changes apply to this session only and never replace the settings.
 struct VaultCollectOptionsView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        @Bindable var model = model
         DisclosureGroup("Collect options") {
             VStack(alignment: .leading, spacing: 12) {
                 URLListEditor(title: "Roots", panelMessage: "Choose folders to search for secrets",
-                              urls: $model.vaultOptions.roots)
-                Toggle("Include uncommitted work", isOn: $model.vaultOptions.includeUncommittedWork)
-                Toggle("Scan file contents for keys", isOn: $model.vaultOptions.scanContents)
+                              urls: override(\.roots, default: model.settings.scanRoots))
+                Toggle("Include uncommitted work", isOn: override(
+                    \.includeUncommittedWork, default: model.settings.vault.includeUncommittedWork))
+                Toggle("Scan file contents for keys", isOn: override(
+                    \.scanContents, default: model.settings.vault.scanContents))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Always collect").font(.headline)
-                    StringListEditor(prompt: "File name, e.g. pubspec.yaml", items: $model.vaultOptions.alwaysCollect)
+                    StringListEditor(prompt: "File name, e.g. pubspec.yaml", items: override(
+                        \.alwaysCollect, default: model.settings.vault.alwaysCollect))
+                }
+                if !model.vaultOverrides.isEmpty {
+                    HStack {
+                        Text("These changes apply to this session only.").font(.caption).foregroundStyle(.secondary)
+                        Button("Use Settings") { model.vaultOverrides = VaultCollectOverrides() }
+                    }
                 }
             }
             .padding(.top, 8)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
+    }
+
+    /// Reads the override, falling back to the settings value; writing stores an override.
+    private func override<T: Equatable>(_ key: WritableKeyPath<VaultCollectOverrides, T?>, default value: T) -> Binding<T> {
+        Binding(
+            get: { model.vaultOverrides[keyPath: key] ?? value },
+            set: { model.vaultOverrides[keyPath: key] = $0 == value ? nil : $0 })
     }
 }
 

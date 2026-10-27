@@ -30,7 +30,9 @@ public struct SecretFinder: SecretFinding {
         var results: [SecretFile] = []
         var seen = Set<String>()
 
-        for rawRoot in options.roots {
+        // Same-named roots get distinct vault folders (the first keeps its plain name).
+        let rootNames = VaultLayout.rootNames(options.roots)
+        for (rawRoot, rootName) in zip(options.roots, rootNames) {
             let root = rawRoot.standardizedFileURL.resolvingSymlinksInPath()
             var hits: [Hit] = []
             var repos: [URL] = []
@@ -116,9 +118,14 @@ public struct SecretFinder: SecretFinding {
                       !excluded.contains(where: { hitURL == $0 || hitURL.isDescendant(of: $0) }),
                       hitURL.isDescendant(of: root),
                       let attrs = try? FileManager.default.attributesOfItem(atPath: hit.url.path),
-                      let size = (attrs[.size] as? NSNumber)?.int64Value,
-                      size <= options.maxFileSizeBytes else { continue }
+                      let size = (attrs[.size] as? NSNumber)?.int64Value else { continue }
                 seen.insert(path)
+                guard size <= options.maxFileSizeBytes else {
+                    let limit = ByteCountFormatter.string(fromByteCount: options.maxFileSizeBytes, countStyle: .file)
+                    let actual = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+                    warnings.append("Skipped \(hitURL.path) (\(hit.reason.rawValue)): \(actual) is over the \(limit) vault file limit")
+                    continue
+                }
 
                 var info: GitInfo?
                 var pathInRepo: String?
@@ -129,7 +136,7 @@ public struct SecretFinder: SecretFinding {
                 }
                 results.append(SecretFile(
                     sourceURL: hit.url.standardizedFileURL, scanRoot: root,
-                    vaultPath: root.lastPathComponent + "/" + relative(hit.url, to: root),
+                    vaultPath: rootName + "/" + relative(hit.url, to: root),
                     reason: hit.reason, matchedRule: hit.rule, sizeBytes: size,
                     modified: attrs[.modificationDate] as? Date, git: info, pathInRepository: pathInRepo))
             }
