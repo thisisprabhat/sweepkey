@@ -37,7 +37,10 @@ struct VersionManagerProvider: CacheProvider {
                 let toolDirs = spec.nested ? ctx.childDirectories(of: root) : [root]
                 for tool in toolDirs {
                     let versions = ctx.children(of: tool).filter { $0.lastPathComponent != "current" && $0.isDirectory }
-                    let newest = newestVersion(versions)
+                    // rustup: the "stable-*" toolchain is the active one when present.
+                    let newest = spec.rule == "rustup"
+                        ? (versions.first { $0.lastPathComponent.hasPrefix("stable-") } ?? newestVersion(versions))
+                        : newestVersion(versions)
                     for version in versions {
                         let label = spec.nested ? "\(tool.lastPathComponent) \(version.lastPathComponent)" : version.lastPathComponent
                         items.append(CacheItem(

@@ -59,7 +59,9 @@ struct IDEProvider: CacheProvider {
     /// "ms-python.python-2024.1.0-darwin-arm64" -> "ms-python.python"
     private func extensionID(_ name: String) -> String {
         let parts = name.split(separator: "-", omittingEmptySubsequences: false)
-        guard let idx = parts.firstIndex(where: { $0.first?.isNumber == true }), idx > 0 else { return name }
+        // Split at the last version-like segment (digit-led, contains "."), never the first segment (publisher).
+        guard let idx = parts.indices.last(where: { $0 > 0 && parts[$0].first?.isNumber == true && parts[$0].contains(".") })
+        else { return name }
         return parts[..<idx].joined(separator: "-")
     }
 }

@@ -36,15 +36,14 @@ struct ContainerProvider: CacheProvider {
                  risk: .danger, hint: "Volume data cannot be regenerated", note: "May contain database data"),
         ].compactMap { $0 }
 
-        var groups = [await ctx.group("container.docker", "Docker", .container,
-                                      detail: "Reclaimable space reported by docker system df", items: items)]
+        var groups = [await ctx.group("container.docker", "Docker", .container, items: items)]
 
         let raw = ctx.path("Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw")
         if ctx.fileExists(raw) {
             let size = ctx.sizer.allocatedSize(of: raw)
             let formatted = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
             groups.append(CacheGroup(
-                id: "container.dockerDisk", title: "Docker Desktop disk image", category: .container,
+                id: "container.dockerDisk.info", title: "Docker Desktop disk image", category: .container,
                 symbolName: CacheCategory.container.symbolName,
                 detail: "Docker.raw uses \(formatted) on disk. Pruning frees space inside it; shrink it from Docker Desktop settings."))
         }

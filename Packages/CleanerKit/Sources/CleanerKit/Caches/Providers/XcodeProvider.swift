@@ -12,8 +12,7 @@ struct XcodeProvider: CacheProvider {
             CacheItem(ruleID: "xcode.derivedData", url: $0, title: $0.lastPathComponent,
                       hint: "Rebuilt by Xcode on next build")
         }
-        groups.append(await ctx.group("xcode.derivedData", "Xcode DerivedData", .xcode,
-                                      detail: "Build products and indexes", items: derived))
+        groups.append(await ctx.group("xcode.derivedData", "Xcode DerivedData", .xcode, items: derived))
 
         var archives: [CacheItem] = []
         let archivesRoot = ctx.path("\(dev)/Xcode/Archives")

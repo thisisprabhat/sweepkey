@@ -38,13 +38,22 @@ struct PackageManagerProvider: CacheProvider {
 
     func detect(_ ctx: CacheContext) async -> [CacheGroup] {
         var items: [CacheItem] = []
-        for spec in specs {
+        for spec in specs where spec.rule != "conda" {
             for rel in spec.paths {
                 let action = spec.command.map { ctx.action($0.0, $0.1) } ?? .delete
                 items.append(CacheItem(
                     ruleID: "pm.\(spec.rule)", url: ctx.path(rel), title: spec.name, risk: spec.risk,
                     hint: "Re-downloaded automatically by \(spec.name)", action: action))
             }
+        }
+        // conda: a single command candidate covering every existing pkgs dir.
+        let condaDirs = ["miniconda3/pkgs", "anaconda3/pkgs", "miniforge3/pkgs"].map { ctx.path($0) }.filter(ctx.fileExists)
+        if let first = condaDirs.first {
+            let total = condaDirs.reduce(Int64(0)) { $0 + ctx.sizer.allocatedSize(of: $1) }
+            items.append(CacheItem(
+                ruleID: "pm.conda", url: first, title: "conda packages",
+                hint: "Re-downloaded automatically by conda", action: ctx.action("conda", ["clean", "-a", "-y"]),
+                size: total))
         }
         // pub: flutter if available, else dart.
         let pubAction: CleanAction
@@ -64,10 +73,8 @@ struct PackageManagerProvider: CacheProvider {
         var cacheURL = ctx.path("Library/Caches/Homebrew")
         var action = CleanAction.delete
         if ctx.resolve("brew") != nil {
-            guard let out = await ctx.output("brew", ["--cache"]) else { return [] }
-            let path = out.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !path.isEmpty else { return [] }
-            cacheURL = URL(fileURLWithPath: path)
+            let path = (await ctx.output("brew", ["--cache"]))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !path.isEmpty { cacheURL = URL(fileURLWithPath: path) }
             action = .command(executable: "brew", arguments: ["cleanup", "--prune=all"])
         }
         return [CacheItem(ruleID: "pm.homebrew", url: cacheURL, title: "Homebrew downloads",

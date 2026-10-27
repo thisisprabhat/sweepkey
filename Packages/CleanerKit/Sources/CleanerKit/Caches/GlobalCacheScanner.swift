@@ -18,9 +18,15 @@ public struct GlobalCacheScanner: CacheScanning {
             }
             for await result in taskGroup { groups.append(contentsOf: result) }
         }
-        // Groups with neither candidates nor an informational detail are dropped.
+        // Every group without candidates is dropped, except explicit info-only groups (id ends in ".info").
         return groups
-            .filter { !$0.candidates.isEmpty || $0.detail != nil }
+            .filter { !$0.candidates.isEmpty || $0.id.hasSuffix(CacheGroup.infoOnlySuffix) }
             .sorted { ($0.totalBytes, $1.title) > ($1.totalBytes, $0.title) }
     }
+}
+
+extension CacheGroup {
+    /// Group ids ending in this suffix mark info-only groups (no candidates, `detail` text only)
+    /// that the scanner keeps even though they are empty.
+    static let infoOnlySuffix = ".info"
 }

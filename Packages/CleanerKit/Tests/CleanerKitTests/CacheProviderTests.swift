@@ -78,7 +78,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
 
             let empty = FakeShell([key: #"{"devices":{"rt":[]}}"#])
             let g2 = await XcodeProvider().detect(context(home, shell: empty, tools: ["xcrun"]))
-            #expect(g2.first { $0.id == "xcode.simulators" }?.candidates.isEmpty ?? true)
+            #expect(!g2.flatMap(\.candidates).contains { $0.ruleID == "xcode.unavailableSimulators" })
         }
     }
 
@@ -210,7 +210,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
             try write(5000, to: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"))
             let shell = FakeShell(["docker info": "ok", "docker system df --format {{json .}}": ""])
             let groups = await ContainerProvider().detect(context(home, shell: shell, tools: ["docker"]))
-            let info = try #require(groups.first { $0.id == "container.dockerDisk" })
+            let info = try #require(groups.first { $0.id == "container.dockerDisk.info" })
             #expect(info.candidates.isEmpty && info.detail != nil)
         }
     }
@@ -255,7 +255,76 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
         }
     }
 
+    @Test func parseHumanSizeTable() {
+        let table: [(String, Int64)] = [
+            ("512kB", 512_000), ("3MB", 3_000_000), ("1.2GB (40%)", 1_200_000_000),
+            ("2TB", 2_000_000_000_000), ("0B", 0), ("4.7 GB", 4_700_000_000),
+            ("10 MB", 10_000_000), ("garbage", 0),
+        ]
+        for (input, expected) in table { #expect(parseHumanSize(input) == expected, "\(input)") }
+    }
+
+    @Test func condaSingleCandidateSummed() async throws {
+        try await withTempDir { home in
+            try write(3000, to: home.appendingPathComponent("miniconda3/pkgs/a"))
+            try write(5000, to: home.appendingPathComponent("miniforge3/pkgs/b"))
+            let g = await PackageManagerProvider().detect(context(home, tools: ["conda"]))
+            let c = g.flatMap(\.candidates).filter { $0.ruleID == "pm.conda" }
+            #expect(c.count == 1 && c[0].sizeBytes >= 8000)
+            #expect(c[0].url.path.hasSuffix("miniconda3/pkgs"))
+            #expect(c[0].action == .command(executable: "conda", arguments: ["clean", "-a", "-y"]))
+        }
+    }
+
+    @Test func homebrewFallsBackWhenBrewCacheFails() async throws {
+        try await withTempDir { home in
+            try write(10, to: home.appendingPathComponent("Library/Caches/Homebrew/x"))
+            let g = await PackageManagerProvider().detect(context(home, shell: FakeShell(), tools: ["brew"]))
+            let c = try #require(g.flatMap(\.candidates).first { $0.ruleID == "pm.homebrew" })
+            #expect(c.action == .command(executable: "brew", arguments: ["cleanup", "--prune=all"]))
+            #expect(c.url.path.hasSuffix("Library/Caches/Homebrew"))
+        }
+    }
+
+    @Test func rustupStableIsDanger() async throws {
+        try await withTempDir { home in
+            let base = home.appendingPathComponent(".rustup/toolchains")
+            for v in ["stable-aarch64-apple-darwin", "nightly-2026-01-01-aarch64-apple-darwin"] {
+                try write(10, to: base.appendingPathComponent("\(v)/bin/rustc"))
+            }
+            let g = await VersionManagerProvider().detect(context(home))
+            let c = try #require(g.first { $0.id == "versionManager.rustup" }).candidates
+            #expect(c.first { $0.url.lastPathComponent.hasPrefix("stable-") }?.risk == .danger)
+            #expect(c.first { $0.url.lastPathComponent.hasPrefix("nightly") }?.risk == .caution)
+        }
+    }
+
+    @Test func extensionWithDigitPublisher() async throws {
+        try await withTempDir { home in
+            let ext = home.appendingPathComponent(".vscode/extensions")
+            for v in ["1password.op-1.2.0", "1password.op-1.10.0"] { try write(10, to: ext.appendingPathComponent("\(v)/p")) }
+            let c = try #require(await IDEProvider().detect(context(home)).first { $0.id == "ide.extensions" }).candidates
+            #expect(c.count == 1 && c[0].url.lastPathComponent == "1password.op-1.2.0")
+        }
+    }
+
     // MARK: scanner
+
+    @Test func realProvidersOnEmptyHomeYieldNoGroups() async throws {
+        try await withTempDir { home in
+            let groups = await GlobalCacheScanner(context: context(home)).scanCaches()
+            #expect(groups.isEmpty)
+        }
+    }
+
+    @Test func dockerInfoGroupSurvivesScanner() async throws {
+        try await withTempDir { home in
+            try write(5000, to: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"))
+            let shell = FakeShell(["docker info": "ok", "docker system df --format {{json .}}": ""])
+            let groups = await GlobalCacheScanner(context: context(home, shell: shell, tools: ["docker"])).scanCaches()
+            #expect(groups.map(\.id) == ["container.dockerDisk.info"])
+        }
+    }
 
     struct StubProvider: CacheProvider {
         let id: String
@@ -273,12 +342,12 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
             let small = CacheGroup(id: "s", title: "S", category: .misc, symbolName: "x", candidates: [cand("a", 10, home: home)])
             let big = CacheGroup(id: "b", title: "B", category: .misc, symbolName: "x", candidates: [cand("b", 999, home: home)])
             let empty = CacheGroup(id: "e", title: "E", category: .misc, symbolName: "x")
-            let info = CacheGroup(id: "i", title: "I", category: .container, symbolName: "x", detail: "info only")
+            let info = CacheGroup(id: "i.info", title: "I", category: .container, symbolName: "x", detail: "info only")
             let scanner = GlobalCacheScanner(
                 providers: [StubProvider(id: "1", groups: [small, empty]), StubProvider(id: "2", groups: [big, info])],
                 context: context(home))
             let result = await scanner.scanCaches()
-            #expect(result.map(\.id) == ["b", "s", "i"])
+            #expect(result.map(\.id) == ["b", "s", "i.info"])
         }
     }
 
