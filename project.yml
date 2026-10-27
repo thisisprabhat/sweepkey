@@ -37,6 +37,11 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.prabhatkumar.Cleaner
             CFBundleURLSchemes: [cleaner]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Folder
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.folder]
         NSServices:
           - NSMenuItem:
               default: Scan with Cleaner

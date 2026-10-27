@@ -66,7 +66,8 @@ struct VaultExportSheet: View {
         if format == .encryptedImage {
             SecureField("Password (8+ characters)", text: $password)
             SecureField("Confirm password", text: $confirm)
-            Toggle("Remember in Keychain (unlock with Touch ID)", isOn: $remember)
+            Toggle(VaultKeychain.gatingAvailable ? "Remember in Keychain (unlock with Touch ID)" : "Remember in Keychain",
+                   isOn: $remember)
             if !confirm.isEmpty && confirm != password {
                 Text("Passwords don't match.").font(.caption).foregroundStyle(.red)
             }
