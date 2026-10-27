@@ -8,6 +8,7 @@ struct VaultExportSheet: View {
     @State private var destination: URL?
     @State private var password = ""
     @State private var confirm = ""
+    @State private var remember = false
 
     private var formatTitle: [VaultExportFormat: LocalizedStringKey] {
         [.folder: "Folder", .zip: "Zip archive", .encryptedImage: "Encrypted image"]
@@ -65,6 +66,8 @@ struct VaultExportSheet: View {
         if format == .encryptedImage {
             SecureField("Password (8+ characters)", text: $password)
             SecureField("Confirm password", text: $confirm)
+            Toggle(VaultKeychain.gatingAvailable ? "Remember in Keychain (unlock with Touch ID)" : "Remember in Keychain",
+                   isOn: $remember)
             if !confirm.isEmpty && confirm != password {
                 Text("Passwords don't match.").font(.caption).foregroundStyle(.red)
             }
@@ -76,7 +79,8 @@ struct VaultExportSheet: View {
                 guard let destination else { return }
                 Task {
                     await model.exportVault(format: format, destination: destination,
-                                            password: format == .encryptedImage ? password : nil)
+                                            password: format == .encryptedImage ? password : nil,
+                                            rememberInKeychain: remember && format == .encryptedImage)
                 }
             }
             .buttonStyle(.glassProminent)

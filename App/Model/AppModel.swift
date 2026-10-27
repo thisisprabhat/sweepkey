@@ -35,6 +35,10 @@ final class AppModel {
     var cacheGroups: [CacheGroup] = []
     var scanError: String?
     @ObservationIgnored var scanTask: Task<Void, Never>?
+    /// Bumped by every scan start and cancel; a scan only writes state while its token is current.
+    @ObservationIgnored var scanGeneration = 0
+    /// Bumped after a clean so disk gauges re-read free space.
+    var diskRefreshToken = 0
 
     // Selection and safety
     var selection: Set<Candidate.ID> = []
@@ -60,6 +64,7 @@ final class AppModel {
     var reports: [CleanReport] = []
     var lifetimeFreedBytes: Int64 = 0
     var putBackState: [UUID: String] = [:]
+    var puttingBack: Set<UUID> = []
     var putBackDone: Set<UUID> = []
 
     // Vault
@@ -68,6 +73,9 @@ final class AppModel {
     var findingsSelection: Set<SecretFile.ID> = []
     var isFindingSecrets = false
     var hasSearchedSecrets = false
+    var vaultWarnings: [String] = []
+    /// Finder warnings from the vault-before-clean pass; shown with the clean result.
+    var vaultBeforeCleanWarnings: [String] = []
     var exportState: ExportState = .idle
     var openedVault: OpenedVault?
     var restoreStrategy: RestoreStrategy = .originalPaths
@@ -78,6 +86,9 @@ final class AppModel {
     var isRestoring = false
 
     var lastError: String?
+
+    /// Set to jump straight to an onboarding step (e.g. Full Disk Access from the Dashboard banner).
+    var onboardingStartStep = 0
 
     init(services: AppServices = .preview) {
         self.services = services
@@ -92,6 +103,16 @@ final class AppModel {
 
     private func persistSettings() {
         do { try services.settingsStore.save(settings) } catch { lastError = error.localizedDescription }
+    }
+
+    /// Adds dropped or opened folders as scan roots (resolved, de-duplicated).
+    func addScanRoots(_ urls: [URL]) {
+        let dirs = AppLogic.directories(from: urls)
+        let existing = Set(AppLogic.resolve(settings.scanRoots).map(\.path))
+        let new = dirs.filter { !existing.contains($0.path) }
+        guard !new.isEmpty else { return }
+        settings.scanRoots.append(contentsOf: new)
+        if !scanState.isScanning { scan() }
     }
 
     // MARK: Rules

@@ -18,4 +18,8 @@ struct AppServices: Sendable {
     var vaultRestorer: any VaultRestoring
     var settingsStore: SettingsStore
     var ruleCatalog: any RuleCatalog
+    /// Persists the last scan (live services only).
+    var scanCache: ScanCache? = nil
+    /// Builds a safety evaluator that honours the given pinned projects (live services only).
+    var safetyFor: (@Sendable ([URL]) -> any SafetyEvaluating)? = nil
 }

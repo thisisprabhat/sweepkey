@@ -64,10 +64,22 @@ struct RootView: View {
         } message: {
             Text(model.lastError ?? "")
         }
-        .task {
-            await model.loadJournal()
-            model.scanIfNeeded()
+        .onDrop(of: [.fileURL], isTargeted: nil) { handleDrop($0) }
+        .task { await model.bootstrap() }
+    }
+}
+
+extension RootView {
+    /// Dropping folders onto the window adds them as scan roots.
+    fileprivate func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        let target = self.model
+        for provider in providers {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in target.addScanRoots([url]) }
+            }
         }
+        return true
     }
 }
 
