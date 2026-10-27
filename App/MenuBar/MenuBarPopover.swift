@@ -7,6 +7,8 @@ struct MenuBarPopover: View {
     @Environment(\.openWindow) private var openWindow
     @State private var disk = DiskInfo.current()
     @State private var confirming = false
+    /// The exact items shown in the confirmation; only these are cleaned.
+    @State private var confirmedItems: [Candidate] = []
     @State private var working = false
     private let automation = AutomationState.shared
 
@@ -58,19 +60,27 @@ struct MenuBarPopover: View {
     @ViewBuilder
     private var quickClean: some View {
         let items = model.safeCleanCandidates
-        let bytes = items.reduce(Int64(0)) { $0 + $1.sizeBytes }
         if confirming {
+            let bytes = confirmedItems.reduce(Int64(0)) { $0 + $1.sizeBytes }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Clean \(items.count) safe item(s), \(size(bytes))?").font(.callout.weight(.medium))
+                Text("Clean \(confirmedItems.count) safe item(s) of stale projects, \(size(bytes))?")
+                    .font(.callout.weight(.medium))
                 Text(model.settings.defaultDeleteMode == .trash ? "Items go to the Trash." : "Items are deleted permanently.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button("Cancel") { confirming = false }
-                    Button("Clean", role: .destructive) {
+                    Button("Cancel") {
                         confirming = false
+                        confirmedItems = []
+                    }
+                    Button("Clean", role: .destructive) {
+                        let chosen = confirmedItems
+                        confirming = false
+                        confirmedItems = []
                         working = true
                         Task {
-                            _ = await model.cleanSafeItems(dryRun: false)
+                            // Exactly the confirmed items, not a recomputed list (as the intents do).
+                            let outcome = await model.cleanEligible(chosen, dryRun: false)
+                            automation.lastActionMessage = outcome.summary
                             working = false
                         }
                     }
@@ -79,6 +89,7 @@ struct MenuBarPopover: View {
             }
         } else {
             Button {
+                confirmedItems = items
                 confirming = true
             } label: {
                 Label(working ? "Cleaning…" : "Quick clean safe items", systemImage: "sparkles")

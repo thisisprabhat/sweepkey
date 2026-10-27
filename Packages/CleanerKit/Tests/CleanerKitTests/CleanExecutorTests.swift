@@ -62,7 +62,8 @@ private final class Collector: @unchecked Sendable {
         }
     }
 
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)) func trashAndPutBack() async throws {
+    /// Touches the real ~/.Trash, so it only runs when explicitly asked for.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CLEANER_TEST_REAL_TRASH"] == "1")) func trashAndPutBack() async throws {
         try await withTempDir { dir in
             let t = dir.appendingPathComponent("a")
             try write(100, to: t.appendingPathComponent("f"))
@@ -229,6 +230,41 @@ private final class Collector: @unchecked Sendable {
             #expect(r.items.map(\.status) == [.cleaned, .skipped])
             #expect(r.items[1].message == "Cancelled")
             #expect(FileManager.default.fileExists(atPath: b.path))
+        }
+    }
+
+    private struct CancelledShell: ShellRunning {
+        func run(_ executable: String, arguments: [String], currentDirectory: URL?, input: Data?, timeout: Duration)
+            async throws -> ShellResult { throw CancellationError() }
+    }
+
+    @Test func commandInterruptedByCancellationIsReportedCancelled() async throws {
+        try await withTempDir { dir in
+            let c = cand(dir.appendingPathComponent("cache"), action: .command(executable: "docker", arguments: ["x"]))
+            let r = await CleanExecutor(shell: CancelledShell()).clean([c], mode: .permanent, dryRun: false) { _ in }
+            #expect(r.items[0].status == .skipped)
+            #expect(r.items[0].message == CleanExecutor.cancelledMessage)
+            #expect(AppLogic.cancelledItems(r).count == 1)
+        }
+    }
+
+    @Test func trashLocationsAccepted() {
+        #expect(CleanExecutor.isInTrash(URL(fileURLWithPath: "/Users/me/.Trash/node_modules")))
+        #expect(CleanExecutor.isInTrash(URL(fileURLWithPath: "/Volumes/Ext/.Trashes/501/node_modules")))
+        #expect(!CleanExecutor.isInTrash(URL(fileURLWithPath: "/Volumes/Ext/.Trashes/501")))
+        #expect(!CleanExecutor.isInTrash(URL(fileURLWithPath: "/Volumes/Ext/.Trashes/notuid/x")))
+        #expect(!CleanExecutor.isInTrash(URL(fileURLWithPath: "/Volumes/Ext/stuff/x")))
+    }
+
+    @Test func putBackFromExternalVolumeTrash() async throws {
+        try await withTempDir { dir in
+            let t = dir.appendingPathComponent("proj/node_modules")
+            let trashed = dir.appendingPathComponent("Vol/.Trashes/501/node_modules")
+            try write(1, to: trashed.appendingPathComponent("f"))
+            let item = CleanItemResult(candidate: cand(t), status: .cleaned, freedBytes: 1, trashURL: trashed)
+            let back = await CleanExecutor(shell: FakeShell()).putBack([item])
+            #expect(back[0].message == "Restored")
+            #expect(FileManager.default.fileExists(atPath: t.appendingPathComponent("f").path))
         }
     }
 }

@@ -22,8 +22,18 @@ struct GeneralSettingsTab: View {
                 }
                 Toggle("Require a vault export before cleaning", isOn: $model.settings.requireVaultBeforeClean)
             }
+            Section("Caches") {
+                Toggle("Include crash and diagnostic reports", isOn: diagnosticReports)
+                Text("Off by default. Takes effect on the next scan.").font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private var diagnosticReports: Binding<Bool> {
+        Binding(
+            get: { OptInCaches.isEnabled(OptInCaches.diagnosticReports, overrides: model.settings.ruleOverrides) },
+            set: { model.settings.ruleOverrides[OptInCaches.diagnosticReports] = $0 })
     }
 }
 

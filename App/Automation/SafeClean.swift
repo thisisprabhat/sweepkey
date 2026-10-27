@@ -20,8 +20,9 @@ struct SafeCleanOutcome {
 }
 
 extension AppModel {
+    /// What unattended paths may clean: `.safe` artifacts of stale projects, never global caches.
     var safeCleanCandidates: [Candidate] {
-        SafeCleanSelection.candidates(projects: projects, cacheGroups: cacheGroups)
+        SafeCleanSelection.candidates(projects: projects)
     }
 
     /// Waits for any in-flight scan, including ones started outside `scanTask` (scheduler, intents).
@@ -41,9 +42,10 @@ extension AppModel {
         }
     }
 
-    /// Cleans `candidates` through the same safety path as the GUI: SafetyGuard evaluation (a
-    /// missing verdict is blocked), `.safe` risk only, vault export first when the setting asks
-    /// for it, and a journal entry for real runs. Never touches the user's selection.
+    /// Cleans `candidates` through the same safety path as the GUI, but stricter: SafetyGuard
+    /// evaluation with the strict partition (a warning, such as an open project, or a missing
+    /// verdict is blocked), stale-project `.safe` artifacts only, vault export first when the
+    /// setting asks for it, and a journal entry for real runs. Never touches the user's selection.
     func cleanEligible(_ candidates: [Candidate], dryRun: Bool) async -> SafeCleanOutcome {
         let state = AutomationState.shared
         if state.isCleaning { return SafeCleanOutcome(error: "Another clean is already running.") }
@@ -51,10 +53,10 @@ extension AppModel {
         state.isCleaning = true
         defer { state.isCleaning = false }
 
-        let safeOnly = candidates.filter { $0.risk == .safe }
+        let safeOnly = candidates.filter { $0.risk == .safe && $0.kind == .projectArtifact }
         guard !safeOnly.isEmpty else { return SafeCleanOutcome() }
         await evaluateVerdicts(for: safeOnly)
-        let (items, blocked) = AppLogic.partition(safeOnly, verdicts: verdicts)
+        let (items, blocked) = AppLogic.partitionStrict(safeOnly, verdicts: verdicts)
         guard !items.isEmpty else { return SafeCleanOutcome(blockedCount: blocked.count) }
 
         if settings.requireVaultBeforeClean, !dryRun {
@@ -84,9 +86,12 @@ extension AppModel {
     }
 
     /// Selects the eligible safe items and shows the clean confirmation sheet. Never deletes.
+    /// Used by the low-space notification action, so it applies the strict partition up front:
+    /// items with a warning (an open project) are not pre-selected.
     func presentSafeCleanSheet() async {
         await ensureScanned()
-        let eligible = safeCleanCandidates
+        await evaluateVerdicts(for: safeCleanCandidates)
+        let eligible = AppLogic.partitionStrict(safeCleanCandidates, verdicts: verdicts).cleanable
         guard !eligible.isEmpty else {
             lastError = "There are no safe items to clean right now."
             return
@@ -99,10 +104,9 @@ extension AppModel {
     func snapshotVault() async throws -> VaultExportResult? {
         let found = try await collectSecrets(currentVaultCollectOptions)
         guard !found.files.isEmpty else { return nil }
-        let destination = (settings.vault.destination ?? AppPaths.defaultVaultDirectory)
-            .standardizedFileURL.resolvingSymlinksInPath()
         return try await services.vaultExporter.export(VaultExportRequest(
-            files: found.files, destination: destination, format: .folder, keepVersions: settings.vault.keepVersions))
+            files: found.files, destination: settings.vaultFolderDestination, format: .folder,
+            keepVersions: settings.vault.keepVersions))
     }
 
     // MARK: Path scans

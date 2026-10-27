@@ -2,6 +2,7 @@ import CleanerKit
 import SwiftUI
 
 struct CleanProgressView: View {
+    @Environment(AppModel.self) private var model
     let progress: CleanProgress
 
     var body: some View {
@@ -15,6 +16,10 @@ struct CleanProgressView: View {
             }
             Text("\(SizeFormat.string(progress.freedBytes)) freed so far")
                 .monospacedDigit().foregroundStyle(.secondary)
+            Button("Cancel", role: .cancel) { model.cancelClean() }
+                .buttonStyle(.glass)
+                .keyboardShortcut(.cancelAction)
+                .help("Stop after the current item. Items not yet processed are left alone.")
         }
         .padding(32)
         .frame(maxWidth: .infinity, minHeight: 320)
@@ -23,5 +28,6 @@ struct CleanProgressView: View {
 
 #Preview {
     CleanProgressView(progress: CleanProgress(completed: 3, total: 8, currentTitle: "node_modules", freedBytes: 1_500_000_000))
+        .environment(AppModel())
         .frame(width: 560)
 }

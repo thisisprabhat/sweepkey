@@ -24,7 +24,28 @@ extension AppModel {
         Task { await beginClean() }
     }
 
-    func runClean(dryRun: Bool) async {
+    /// Starts the clean from the confirmation sheet and keeps the task so it can be cancelled.
+    /// `acknowledged` lists the warning/danger items the user ticked off in the sheet.
+    func startClean(dryRun: Bool, acknowledged: Set<Candidate.ID>) {
+        guard cleanTask == nil else { return }
+        cleanTask = Task { [weak self] in
+            await self?.runClean(dryRun: dryRun, acknowledged: acknowledged)
+            self?.cleanTask = nil
+        }
+    }
+
+    /// Cancels a running GUI clean. Items not yet processed are reported as cancelled, and the
+    /// partial run is still journaled.
+    func cancelClean() {
+        cleanTask?.cancel()
+        if case .running(let progress) = cleanPhase {
+            var cancelling = progress
+            cancelling.currentTitle = "Cancelling…"
+            cleanPhase = .running(cancelling)
+        }
+    }
+
+    func runClean(dryRun: Bool, acknowledged: Set<Candidate.ID> = []) async {
         // Two-way guard with automation cleans (menu bar, intents, scheduler).
         let automation = AutomationState.shared
         guard !automation.isCleaning else {
@@ -37,8 +58,21 @@ extension AppModel {
         await evaluateVerdicts(for: selectedCandidates)
         let items = cleanableSelected
         guard !items.isEmpty else { return }
+        if !dryRun {
+            // A warning that appeared after the sheet was shown was never acknowledged: review again.
+            let unacknowledged = items.filter {
+                AppLogic.needsAcknowledgement($0, verdict: verdicts[$0.id]) && !acknowledged.contains($0.id)
+            }
+            if !unacknowledged.isEmpty {
+                lastError = "The safety status of \(unacknowledged.count) item(s) changed. Review and confirm again."
+                cleanPhase = .confirming
+                return
+            }
+        }
         cleanPhase = .running(CleanProgress(completed: 0, total: items.count, currentTitle: "", freedBytes: 0))
         vaultBeforeCleanWarnings = []
+        cleanFreeSpace = nil
+        let freeBefore = DiskInfo.current()?.freeBytes
 
         if settings.requireVaultBeforeClean, !dryRun {
             cleanPhase = .running(CleanProgress(
@@ -52,8 +86,10 @@ extension AppModel {
 
         let report = await services.cleaner.clean(items, mode: cleanMode, dryRun: dryRun) { [weak self] progress in
             Task { @MainActor in
-                guard let self, case .running = self.cleanPhase else { return }
-                self.cleanPhase = .running(progress)
+                guard let self, case .running(let current) = self.cleanPhase else { return }
+                var next = progress
+                if self.cleanTask?.isCancelled == true { next.currentTitle = current.currentTitle }
+                self.cleanPhase = .running(next)
             }
         }
         if !dryRun {
@@ -62,40 +98,32 @@ extension AppModel {
             selection.subtract(cleaned)
             removeCandidates(cleaned)
             diskRefreshToken += 1
+            if let freeBefore, let after = DiskInfo.current()?.freeBytes {
+                cleanFreeSpace = FreeSpaceDelta(before: freeBefore, after: after)
+            }
             await persistScanCache()
             await loadJournal()
+            // Spec §E: rescan what was cleaned, in the background, so the lists reflect the disk.
+            let roots = AppLogic.affectedProjectRoots(report)
+            if !roots.isEmpty {
+                Task { [weak self] in await self?.rescanMerging(roots) }
+            }
         }
         cleanPhase = .finished(report)
     }
 
     /// Vault collection options from the current settings, with resolved roots.
-    var currentVaultCollectOptions: VaultCollectOptions {
-        VaultCollectOptions(
-            roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
-            extraPatterns: settings.vault.extraPatterns, alwaysCollect: settings.vault.alwaysCollect,
-            includeUncommittedWork: settings.vault.includeUncommittedWork, scanContents: settings.vault.scanContents)
-    }
+    var currentVaultCollectOptions: VaultCollectOptions { settings.vaultCollectOptions() }
 
     /// Collects and exports (folder format) the secrets of the projects being cleaned.
     /// Returns an error description on failure, nil on success.
     func exportSecretsBeforeClean(for items: [Candidate]) async -> String? {
-        let itemIDs = Set(items.map(\.id))
-        let affected = projects.filter { project in project.candidates.contains { itemIDs.contains($0.id) } }
-            .map { $0.url.standardizedFileURL.resolvingSymlinksInPath() }
-        guard !affected.isEmpty else { return nil }
-        let options = currentVaultCollectOptions
         do {
-            let found = try await collectSecrets(options)
-            vaultBeforeCleanWarnings = found.warnings
-            let files = found.files.filter { file in
-                let source = file.sourceURL.standardizedFileURL.resolvingSymlinksInPath()
-                return affected.contains { source.isDescendant(of: $0) }
-            }
-            guard !files.isEmpty else { return nil }
-            let destination = (settings.vault.destination ?? AppPaths.defaultVaultDirectory)
-                .standardizedFileURL.resolvingSymlinksInPath()
-            _ = try await services.vaultExporter.export(VaultExportRequest(
-                files: files, destination: destination, format: .folder, keepVersions: settings.vault.keepVersions))
+            let outcome = try await VaultBeforeClean.run(
+                candidates: items, settings: settings,
+                collect: { [self] options in try await collectSecrets(options) },
+                exporter: services.vaultExporter)
+            vaultBeforeCleanWarnings = outcome.warnings
             return nil
         } catch {
             return error.localizedDescription

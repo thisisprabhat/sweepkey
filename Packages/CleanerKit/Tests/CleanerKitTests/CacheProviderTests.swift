@@ -133,7 +133,53 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
             let c = try #require(g.flatMap(\.candidates).first { $0.ruleID == "pm.homebrew" })
             #expect(c.action == .command(executable: "brew", arguments: ["cleanup", "--prune=all"]))
             #expect(c.sizeBytes >= 4000)
+            #expect(c.title.contains("old formula versions"))
         }
+    }
+
+    @Test func homebrewWithoutBrewIsPlainDownloads() async throws {
+        try await withTempDir { home in
+            try write(10, to: home.appendingPathComponent("Library/Caches/Homebrew/x"))
+            let g = await PackageManagerProvider().detect(context(home))
+            let c = try #require(g.flatMap(\.candidates).first { $0.ruleID == "pm.homebrew" })
+            #expect(c.action == .delete)
+            #expect(c.title == "Homebrew downloads")
+        }
+    }
+
+    @Test func gemIsCautionWithHonestHint() async throws {
+        try await withTempDir { home in
+            try write(10, to: home.appendingPathComponent(".gem/ruby/3.3.0/gems/x"))
+            let g = await PackageManagerProvider().detect(context(home))
+            let c = try #require(g.flatMap(\.candidates).first { $0.ruleID == "pm.gem" })
+            #expect(c.risk == .caution)
+            #expect(!(c.regenerateHint ?? "").contains("automatically"))
+        }
+    }
+
+    @Test func diagnosticReportsAreCautionAndOptIn() async throws {
+        try await withTempDir { home in
+            try write(10, to: home.appendingPathComponent("Library/Logs/DiagnosticReports/a.ips"))
+            let groups = await MiscProvider().detect(context(home))
+            let c = try #require(groups.flatMap(\.candidates).first { $0.ruleID == OptInCaches.diagnosticReports })
+            #expect(c.risk == .caution)
+            // Off by default: the only candidate disappears, and so does its now-empty group.
+            #expect(OptInCaches.apply(groups, overrides: [:]).flatMap(\.candidates).isEmpty)
+            #expect(OptInCaches.apply(groups, overrides: [OptInCaches.diagnosticReports: false]).isEmpty)
+            let on = OptInCaches.apply(groups, overrides: [OptInCaches.diagnosticReports: true])
+            #expect(on.flatMap(\.candidates).map(\.ruleID) == [OptInCaches.diagnosticReports])
+        }
+    }
+
+    @Test func optInFilterKeepsOtherItemsAndInfoGroups() {
+        let other = Candidate(
+            id: "x|/h/x", url: URL(fileURLWithPath: "/h/x"), kind: .globalCache, title: "x", ecosystemID: "misc",
+            ruleID: "misc.iosBackup", risk: .danger, sizeBytes: 1)
+        let groups = [
+            CacheGroup(id: "misc.other", title: "Other", category: .misc, symbolName: "x", candidates: [other]),
+            CacheGroup(id: "container.dockerDisk.info", title: "Info", category: .container, symbolName: "x"),
+        ]
+        #expect(OptInCaches.apply(groups, overrides: [:]).map(\.id) == ["misc.other", "container.dockerDisk.info"])
     }
 
     @Test func gradleWrapperNewestIsCaution() async throws {
@@ -191,6 +237,9 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
             let images = try #require(g.candidates.first { $0.ruleID == "container.images" })
             #expect(images.sizeBytes == 1_200_000_000)
             #expect(images.action == .command(executable: "docker", arguments: ["image", "prune", "-af"]))
+            #expect(images.risk == .caution)
+            #expect(g.candidates.first { $0.ruleID == "container.containers" }?.risk == .caution)
+            #expect(g.candidates.first { $0.ruleID == "container.buildCache" }?.risk == .safe)
             #expect(g.candidates.first { $0.ruleID == "container.volumes" }?.risk == .danger)
             #expect(g.candidates.first { $0.ruleID == "container.buildCache" }?.sizeBytes == 2_000_000_000)
             #expect(parseHumanSize("1.2GB (40%)") == 1_200_000_000)

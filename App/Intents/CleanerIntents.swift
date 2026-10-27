@@ -23,7 +23,7 @@ struct ScanProjectsIntent: AppIntent {
 struct CleanStaleArtifactsIntent: AppIntent {
     static let title: LocalizedStringResource = "Clean Stale Artifacts"
     static let description = IntentDescription(
-        "Cleans safe artifacts of stale projects and safe caches. Dry run by default; a real run asks for confirmation.")
+        "Cleans safe artifacts of stale projects (never global caches). Dry run by default; a real run asks for confirmation.")
 
     @Parameter(title: "Dry Run", default: true)
     var dryRun: Bool
@@ -68,7 +68,8 @@ struct SnapshotSecretsIntent: AppIntent {
 
 struct FreeUpSpaceIntent: AppIntent {
     static let title: LocalizedStringResource = "Free Up Space"
-    static let description = IntentDescription("Cleans safe items, largest first, until the requested amount is reclaimed.")
+    static let description = IntentDescription(
+        "Cleans safe artifacts of stale projects, largest first, until the requested amount is reclaimed.")
 
     @Parameter(title: "Gigabytes", default: 5, inclusiveRange: (1, 1000))
     var gigabytes: Int

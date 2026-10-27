@@ -5,7 +5,12 @@ struct CleanConfirmationSheet: View {
     @Environment(AppModel.self) private var model
     @State private var acknowledged = false
 
-    private var hasDanger: Bool { model.cleanableSelected.contains { $0.risk == .danger } }
+    /// Danger items and items with a safety warning (e.g. the project is open) need acknowledgement.
+    private func needsAcknowledgement(_ candidate: Candidate) -> Bool {
+        AppLogic.needsAcknowledgement(candidate, verdict: model.verdicts[candidate.id])
+    }
+
+    private var needsAcknowledgementCount: Int { model.cleanableSelected.filter(needsAcknowledgement).count }
     private var total: Int64 { model.cleanableSelected.reduce(0) { $0 + $1.sizeBytes } }
 
     var body: some View {
@@ -15,7 +20,7 @@ struct CleanConfirmationSheet: View {
             List {
                 Section {
                     ForEach(model.cleanableSelected) { candidate in
-                        row(candidate, highlighted: candidate.risk == .danger, dimmed: false)
+                        row(candidate, highlighted: needsAcknowledgement(candidate), dimmed: false)
                     }
                 }
                 if !model.blockedSelected.isEmpty {
@@ -43,8 +48,8 @@ struct CleanConfirmationSheet: View {
                 Label("Permanent deletion cannot be undone.", systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            if hasDanger {
-                Toggle("I understand the highlighted items may contain files that cannot be regenerated.",
+            if needsAcknowledgementCount > 0 {
+                Toggle("I understand the \(needsAcknowledgementCount) highlighted item(s) are high risk or belong to a project that looks open, and may contain files that cannot be regenerated.",
                        isOn: $acknowledged)
                     .toggleStyle(.checkbox)
             }
@@ -52,13 +57,16 @@ struct CleanConfirmationSheet: View {
                 Button("Cancel", role: .cancel) { model.dismissClean() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Dry Run") { Task { await model.runClean(dryRun: true) } }
+                Button("Dry Run") { model.startClean(dryRun: true, acknowledged: []) }
                     .buttonStyle(.glass)
                     .disabled(model.cleanableSelected.isEmpty)
-                Button("Clean", systemImage: "trash") { Task { await model.runClean(dryRun: false) } }
+                Button("Clean", systemImage: "trash") {
+                    let shown = Set(model.cleanableSelected.filter(needsAcknowledgement).map(\.id))
+                    model.startClean(dryRun: false, acknowledged: acknowledged ? shown : [])
+                }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(model.cleanableSelected.isEmpty || (hasDanger && !acknowledged))
+                    .disabled(model.cleanableSelected.isEmpty || (needsAcknowledgementCount > 0 && !acknowledged))
             }
         }
         .padding(20)
@@ -71,6 +79,9 @@ struct CleanConfirmationSheet: View {
                 Text(candidate.title)
                 Text(candidate.url.abbreviatingHome).font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
+                if !dimmed, case .warning? = model.verdicts[candidate.id], let verdict = model.verdicts[candidate.id] {
+                    VerdictRow(verdict: verdict).font(.caption)
+                }
                 if dimmed {
                     if let verdict = model.verdicts[candidate.id] {
                         VerdictRow(verdict: verdict).font(.caption)

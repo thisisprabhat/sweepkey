@@ -13,18 +13,22 @@ import Testing
         Project(url: URL(fileURLWithPath: "/p/\(name)"), name: name, candidates: cands, isStale: stale)
     }
 
-    private func cache(_ cands: [Candidate]) -> CacheGroup {
-        CacheGroup(id: "c", title: "c", category: .xcode, symbolName: "x", candidates: cands)
-    }
-
     @Test func selectionExcludesNonStaleAndNonSafe() {
         let projects = [
             project("fresh", stale: false, [cand("a", .safe)]),
-            project("old", stale: true, [cand("b", .safe), cand("c", .caution)]),
+            project("old", stale: true, [cand("b", .safe), cand("c", .caution), cand("f", .danger)]),
         ]
-        let picked = SafeCleanSelection.candidates(
-            projects: projects, cacheGroups: [cache([cand("d", .safe), cand("e", .caution)])])
-        #expect(Set(picked.map(\.id)) == ["b", "d"])
+        let picked = SafeCleanSelection.candidates(projects: projects)
+        #expect(picked.map(\.id) == ["b"])
+    }
+
+    @Test func selectionNeverIncludesCaches() {
+        var safeCache = cand("d", .safe)
+        safeCache.kind = .globalCache
+        // Even a global-cache candidate attached to a stale project is excluded.
+        let projects = [project("old", stale: true, [cand("b", .safe), safeCache])]
+        #expect(SafeCleanSelection.candidates(projects: projects).map(\.id) == ["b"])
+        #expect(SafeCleanSelection.candidates(projects: []).isEmpty)
     }
 
     @Test func largestFirstBoundaries() {

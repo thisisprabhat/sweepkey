@@ -9,6 +9,8 @@ struct CleanResultView: View {
 
     private var approximate: [CleanItemResult] { report.items.filter(AppLogic.isApproximate) }
 
+    private var cancelled: [CleanItemResult] { AppLogic.cancelledItems(report) }
+
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: report.dryRun ? "doc.text.magnifyingglass" : "checkmark.seal.fill")
@@ -23,6 +25,14 @@ struct CleanResultView: View {
                 Text("\(SizeFormat.string(report.freedBytes)) freed").font(.title.weight(.semibold)).monospacedDigit()
                 Text(report.mode == .trash ? "Items were moved to the Trash." : "Items were deleted permanently.")
                     .foregroundStyle(.secondary)
+                if let delta = model.cleanFreeSpace {
+                    Text("Free space: \(SizeFormat.string(delta.before)) → \(SizeFormat.string(delta.after)) (\(delta.gained >= 0 ? "+" : "−")\(SizeFormat.string(abs(delta.gained))))")
+                        .font(.callout).monospacedDigit().foregroundStyle(.secondary)
+                }
+            }
+            if !cancelled.isEmpty {
+                Label("Cancelled: \(cancelled.count) item(s) were not processed.", systemImage: "stop.circle")
+                    .foregroundStyle(.orange)
             }
             if !approximate.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {

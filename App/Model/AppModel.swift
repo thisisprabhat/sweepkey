@@ -59,6 +59,10 @@ final class AppModel {
     var cleanPhase: CleanPhase = .idle
     var cleanMode: DeleteMode = .permanent
     var isCleanSheetPresented = false
+    /// The running GUI clean, kept so the progress view can cancel it.
+    @ObservationIgnored var cleanTask: Task<Void, Never>?
+    /// Volume free space before and after the last real GUI clean.
+    var cleanFreeSpace: FreeSpaceDelta?
 
     // History
     var reports: [CleanReport] = []
@@ -68,7 +72,9 @@ final class AppModel {
     var putBackDone: Set<UUID> = []
 
     // Vault
-    var vaultOptions: VaultCollectOptions
+    /// Session-only changes made on the Vault screen. They layer over the settings, which stay the
+    /// single source of truth (see `vaultOptions`).
+    var vaultOverrides = VaultCollectOverrides()
     var findings: [SecretFile] = []
     var findingsSelection: Set<SecretFile.ID> = []
     var isFindingSecrets = false
@@ -95,10 +101,6 @@ final class AppModel {
         let loaded = services.settingsStore.load()
         settings = loaded
         cleanMode = loaded.defaultDeleteMode
-        vaultOptions = VaultCollectOptions(
-            roots: loaded.scanRoots, excludedPaths: loaded.excludedPaths,
-            extraPatterns: loaded.vault.extraPatterns, alwaysCollect: loaded.vault.alwaysCollect,
-            includeUncommittedWork: loaded.vault.includeUncommittedWork, scanContents: loaded.vault.scanContents)
     }
 
     private func persistSettings() {

@@ -78,7 +78,7 @@ extension AppModel {
         guard isCurrent() else { return }
         scanError = failure
         if failure == nil { AutomationState.shared.resultsMayBeOutdated = false }
-        cacheGroups = found
+        cacheGroups = OptInCaches.apply(found, overrides: settings.ruleOverrides)
         scanState = .done(summary ?? ScanSummary(
             projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
             totalBytes: projects.reduce(0) { $0 + $1.reclaimableBytes }, startedAt: Date(), finishedAt: Date()))

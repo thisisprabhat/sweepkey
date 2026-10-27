@@ -29,9 +29,11 @@ struct ContainerProvider: CacheProvider {
             item("Build Cache", "buildCache", "Docker build cache", ["builder", "prune", "-af"],
                  hint: "Rebuilt on next docker build"),
             item("Images", "images", "Unused Docker images", ["image", "prune", "-af"],
-                 hint: "Pulled or rebuilt when needed"),
+                 risk: .caution, hint: "Pulled or rebuilt when needed",
+                 note: "Removes every image not used by a container, including ones you built locally"),
             item("Containers", "containers", "Stopped containers", ["container", "prune", "-f"],
-                 hint: "Recreate with docker run"),
+                 risk: .caution, hint: "Recreate with docker run",
+                 note: "A stopped container's writable layer (files changed inside it) is lost"),
             item("Local Volumes", "volumes", "Unused Docker volumes", ["volume", "prune", "-af"],
                  risk: .danger, hint: "Volume data cannot be regenerated", note: "May contain database data"),
         ].compactMap { $0 }
