@@ -7,5 +7,5 @@ OWNER="$1"
 case "$OWNER" in *[!A-Za-z0-9-]*|"") echo "error: invalid owner" >&2; exit 1;; esac
 cd "$(dirname "$0")/.."
 git ls-files -z | grep -zv '^scripts/configure-repo.sh$' | xargs -0 grep -l --null 'OWNER' 2>/dev/null \
-  | xargs -0 sed -i '' "s#github.com/OWNER/#github.com/$OWNER/#g; s#homebrew-tap/OWNER#homebrew-tap/$OWNER#g" || true
+  | xargs -0 sed -i '' "s#github.com/OWNER/#github.com/$OWNER/#g; s#cask OWNER/#cask $OWNER/#g" || true
 echo "Replaced OWNER with $OWNER"
