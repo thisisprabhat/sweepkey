@@ -1,11 +1,13 @@
 import Foundation
 
-/// Which candidates automation may clean: only `.safe` artifacts of stale projects, plus `.safe` caches.
+/// Which candidates unattended paths (scheduler auto-clean, menu-bar quick clean, the low-space
+/// notification action and intents) may clean: only `.safe` artifacts of stale projects. Global
+/// caches are never selected, whatever their risk: they are shared by every project and some
+/// cleanups (Docker prunes, Homebrew's old versions) are not trivially reversible.
 public enum SafeCleanSelection {
-    public static func candidates(projects: [Project], cacheGroups: [CacheGroup]) -> [Candidate] {
-        let artifacts = projects.filter(\.isStale).flatMap(\.candidates)
-        let caches = cacheGroups.flatMap(\.candidates)
-        return (artifacts + caches).filter { $0.risk == .safe }
+    public static func candidates(projects: [Project]) -> [Candidate] {
+        projects.filter(\.isStale).flatMap(\.candidates)
+            .filter { $0.kind == .projectArtifact && $0.risk == .safe }
     }
 
     /// Largest first until at least `bytes` are covered (or everything is taken).

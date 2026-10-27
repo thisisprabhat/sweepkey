@@ -7,6 +7,7 @@ struct VaultRestoreView: View {
     @State private var pendingEncrypted: URL?
     @State private var password = ""
     @State private var hasSavedPassword = false
+    @State private var confirmingRestore = false
     private static let log = Logger(subsystem: "com.prabhatkumar.Cleaner", category: "keychain")
 
     private enum StrategyKind: Hashable { case original, gitRemote }
@@ -100,19 +101,46 @@ struct VaultRestoreView: View {
             }
             .formStyle(.grouped)
             .frame(maxHeight: 260)
+            if !model.restoreWarnings.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.restoreWarnings, id: \.self) { Text($0).font(.caption) }
+                }
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20).padding(.vertical, 6)
+            }
             RestoreActionsTable()
             if let result = model.restoreResult { resultBar(result) }
             HStack {
                 Button("Close Vault") { Task { await model.closeVault() } }
                 Spacer()
                 Button("Restore \(model.restoreSelection.count) Files", systemImage: "arrow.uturn.backward") {
-                    Task { await model.runRestore() }
+                    confirmingRestore = true
                 }
                 .buttonStyle(.glassProminent)
                 .disabled(model.restoreSelection.isEmpty || model.isRestoring)
             }
             .padding(12)
         }
+        .confirmationDialog("Restore \(model.chosenRestoreActions.count) files?", isPresented: $confirmingRestore) {
+            Button("Restore") { Task { await model.runRestore() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(restoreSummary)
+        }
+    }
+
+    /// Destinations the restore will write, so nothing lands somewhere unexpected.
+    private var restoreSummary: String {
+        let chosen = model.chosenRestoreActions
+        var lines = chosen.prefix(12).map { action in
+            let note = action.destinationExists && !action.identical
+                ? (model.restoreOverwrite ? " (replaces the existing file; it goes to the Trash)" : " (exists, skipped)")
+                : ""
+            return action.destinationURL.abbreviatingHome + note
+        }
+        if chosen.count > 12 { lines.append("…and \(chosen.count - 12) more") }
+        return lines.joined(separator: "\n")
     }
 
     private func resultBar(_ result: RestoreResult) -> some View {

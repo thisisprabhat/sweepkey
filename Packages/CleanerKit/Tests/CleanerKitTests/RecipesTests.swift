@@ -92,7 +92,7 @@ private func artifact(_ name: String, in dir: URL) -> Candidate {
             exporter: FakeExporter(log: log, fail: exportFails),
             cleaner: FakeCleaner(log: log, status: cleanStatus),
             safety: FakeSafety(verdicts: verdicts), shell: shell,
-            trash: { url in log.add("trash:\(url.lastPathComponent)") })
+            trash: { url in log.add("trash:\(url.lastPathComponent)"); return nil })
     }
 
     private func project(_ dir: URL, git: GitInfo? = nil) -> Project {
@@ -340,5 +340,121 @@ private func artifact(_ name: String, in dir: URL) -> Candidate {
             #expect(script.contains("'Root/app'"))
             #expect(FileManager.default.isExecutableFile(atPath: out.appendingPathComponent("restore.sh").path))
         }
+    }
+}
+
+private final class Recorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _options: [VaultCollectOptions] = []
+    private var _requests: [VaultExportRequest] = []
+    func add(_ o: VaultCollectOptions) { lock.withLock { _options.append(o) } }
+    func add(_ r: VaultExportRequest) { lock.withLock { _requests.append(r) } }
+    var options: [VaultCollectOptions] { lock.withLock { _options } }
+    var requests: [VaultExportRequest] { lock.withLock { _requests } }
+}
+
+private struct RecordingFinder: SecretFinding {
+    var files: [SecretFile]
+    var recorder: Recorder
+    func findSecrets(_ options: VaultCollectOptions) async throws -> [SecretFile] {
+        recorder.add(options); return files
+    }
+}
+
+private struct RecordingExporter: VaultExporting {
+    var recorder: Recorder
+    func export(_ request: VaultExportRequest) async throws -> VaultExportResult {
+        recorder.add(request)
+        return VaultExportResult(
+            outputURL: request.destination,
+            manifest: VaultManifest(createdAt: Date(), hostName: "h", entries: []), copiedCount: 1, unchangedCount: 0)
+    }
+}
+
+@Suite struct RecipeVaultSettingsTests {
+    @Test func archiveUsesSettingsOptionsKeepVersionsAndRootLayout() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let proj = root.appendingPathComponent("group/proj", isDirectory: true)
+            try FileManager.default.createDirectory(at: proj, withIntermediateDirectories: true)
+            let env = SecretFile(sourceURL: proj.appendingPathComponent(".env"), scanRoot: proj, vaultPath: "proj/.env",
+                                 reason: .ignoredMatch, matchedRule: ".env", sizeBytes: 1)
+            let rec = Recorder()
+            let recipe = ArchiveRecipe(
+                secrets: RecordingFinder(files: [env], recorder: rec), exporter: RecordingExporter(recorder: rec),
+                cleaner: FakeCleaner(log: Log()), safety: FakeSafety(verdicts: [:]), shell: FakeShell(log: Log()),
+                trash: { _ in nil })
+            var settings = CleanerSettings()
+            settings.scanRoots = [root]
+            settings.vault.includeUncommittedWork = true
+            settings.vault.alwaysCollect = ["Podfile"]
+            let project = Project(url: proj, name: "proj")
+            _ = await recipe.run(
+                project: project, vaultDestination: dir.appendingPathComponent("vault"), archiveDirectory: nil, zip: false,
+                collect: settings.vaultCollectOptions(), layoutRoots: [root], keepVersions: 3)
+            let options = try #require(rec.options.first)
+            #expect(options.roots == [proj])
+            #expect(options.includeUncommittedWork && options.alwaysCollect == ["Podfile"])
+            let request = try #require(rec.requests.first)
+            #expect(request.keepVersions == 3)
+            #expect(request.files.map(\.vaultPath) == ["Projects/group/proj/.env"])
+        }
+    }
+
+    @Test func archiveOutsideScanRootsUsesParentLayout() async throws {
+        try await withTempDir { dir in
+            let proj = dir.appendingPathComponent("loose/proj", isDirectory: true)
+            try FileManager.default.createDirectory(at: proj, withIntermediateDirectories: true)
+            let env = SecretFile(sourceURL: proj.appendingPathComponent(".env"), scanRoot: proj, vaultPath: "proj/.env",
+                                 reason: .ignoredMatch, matchedRule: ".env", sizeBytes: 1)
+            let rec = Recorder()
+            let recipe = ArchiveRecipe(
+                secrets: RecordingFinder(files: [env], recorder: rec), exporter: RecordingExporter(recorder: rec),
+                cleaner: FakeCleaner(log: Log()), safety: FakeSafety(verdicts: [:]), shell: FakeShell(log: Log()),
+                trash: { _ in nil })
+            _ = await recipe.run(
+                project: Project(url: proj, name: "proj"), vaultDestination: dir.appendingPathComponent("vault"),
+                archiveDirectory: nil, zip: false)
+            #expect(rec.requests.first?.files.map(\.vaultPath) == ["loose/proj/.env"])
+        }
+    }
+
+    @Test func migrationUsesSettingsOptionsAndKeepVersions() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            try writeText("A=1", to: root.appendingPathComponent("app/.env"))
+            let rec = Recorder()
+            let file = try makeFile(root.appendingPathComponent("app/.env"), root: root)
+            var settings = CleanerSettings()
+            settings.vault.scanContents = true
+            _ = try await MigrationBundle.export(
+                roots: [root], to: dir.appendingPathComponent("bundle"),
+                secrets: RecordingFinder(files: [file], recorder: rec), exporter: RecordingExporter(recorder: rec),
+                git: GitClient(shell: NoGitShell()),
+                collect: settings.vaultCollectOptions(roots: [dir.appendingPathComponent("other")]), keepVersions: 7)
+            #expect(rec.options.first?.roots == [root])
+            #expect(rec.options.first?.scanContents == true)
+            #expect(rec.requests.first?.keepVersions == 7)
+        }
+    }
+
+    @Test func archiveJournalRecordsCleanAndProjectMove() {
+        let url = URL(fileURLWithPath: "/p/proj")
+        let project = Project(url: url, name: "proj", ecosystemIDs: ["javascript"])
+        var report = ArchiveReport()
+        report.cleanReport = CleanReport(startedAt: .now, finishedAt: .now, mode: .permanent, dryRun: false, items: [])
+        report.trashedProject = true
+        report.zipURL = URL(fileURLWithPath: "/a/proj.zip")
+        report.projectTrashURL = URL(fileURLWithPath: "/Users/me/.Trash/proj")
+        let entries = ArchiveJournal.reports(for: report, project: project)
+        #expect(entries.count == 2)
+        #expect(entries[0].mode == .permanent)
+        let move = entries[1]
+        #expect(move.mode == .trash && !move.dryRun)
+        #expect(move.items.first?.candidate.url == url)
+        #expect(move.items.first?.trashURL?.path == "/Users/me/.Trash/proj")
+        #expect(move.items.first?.message?.contains("/a/proj.zip") == true)
+        #expect(move.freedBytes == 0)
+        #expect(ArchiveJournal.reports(for: ArchiveReport(), project: project).isEmpty)
     }
 }

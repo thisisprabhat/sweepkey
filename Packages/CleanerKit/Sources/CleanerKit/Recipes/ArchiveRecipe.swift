@@ -19,12 +19,16 @@ public struct ArchiveReport: Sendable {
     public var freedBytes: Int64 = 0
     public var zipURL: URL?
     public var trashedProject = false
+    /// Where the project went in the Trash (when the trash call reports it), for Put Back.
+    public var projectTrashURL: URL?
     /// The permanent artifact clean, so the caller can journal it.
     public var cleanReport: CleanReport?
     /// True only if every step finished without failure.
     public var succeeded: Bool { !steps.isEmpty && !steps.contains { $0.status == .failed } }
     /// True when the run stopped because risks were not acknowledged.
     public var requiresAcknowledgement = false
+
+    public init() {}
 }
 
 /// Vault-collect, clean, optionally zip-and-trash a project. Stops at the first failing step; the
@@ -35,12 +39,13 @@ public struct ArchiveRecipe: Sendable {
     private let cleaner: any CleanExecuting
     private let safety: any SafetyEvaluating
     private let shell: any ShellRunning
-    private let trash: @Sendable (URL) throws -> Void
+    private let trash: @Sendable (URL) throws -> URL?
 
+    /// `trash` moves the project to the Trash and returns where it landed (nil if unknown).
     public init(
         secrets: any SecretFinding, exporter: any VaultExporting, cleaner: any CleanExecuting,
         safety: any SafetyEvaluating, shell: any ShellRunning = ProcessShellRunner(),
-        trash: @escaping @Sendable (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
+        trash: @escaping @Sendable (URL) throws -> URL? = ArchiveRecipe.moveToTrash
     ) {
         self.secrets = secrets
         self.exporter = exporter
@@ -50,9 +55,17 @@ public struct ArchiveRecipe: Sendable {
         self.trash = trash
     }
 
+    /// - Parameters:
+    ///   - collect: the user's vault collect options (`CleanerSettings.vaultCollectOptions()`); the
+    ///     roots are replaced by the project. Defaults apply when nil.
+    ///   - layoutRoots: the scan roots, in settings order, so the vault uses the same
+    ///     `<root>/<relative path>` layout as every other export. A project outside them is laid
+    ///     out under its parent folder.
+    ///   - keepVersions: `VaultSettings.keepVersions`.
     public func run(
         project: Project, vaultDestination: URL, archiveDirectory: URL?, zip: Bool,
-        acknowledgeRisks: Bool = false
+        acknowledgeRisks: Bool = false, collect: VaultCollectOptions? = nil, layoutRoots: [URL] = [],
+        keepVersions: Int = 5
     ) async -> ArchiveReport {
         var report = ArchiveReport()
 
@@ -97,12 +110,16 @@ public struct ArchiveRecipe: Sendable {
 
         // 1. Vault collect + folder export.
         do {
-            let found = try await secrets.findSecrets(VaultCollectOptions(roots: [project.url]))
+            var options = collect ?? VaultCollectOptions(roots: [])
+            options.roots = [project.url]
+            let found = VaultLayout.rebase(
+                try await secrets.findSecrets(options),
+                scanRoots: layoutRoots + [project.url.deletingLastPathComponent()])
             if found.isEmpty {
                 report.steps.append(ArchiveStep(name: "Vault", status: .skipped, detail: "No secrets found"))
             } else {
-                let result = try await exporter.export(
-                    VaultExportRequest(files: found, destination: vaultDestination, format: .folder))
+                let result = try await exporter.export(VaultExportRequest(
+                    files: found, destination: vaultDestination, format: .folder, keepVersions: keepVersions))
                 report.steps.append(ArchiveStep(
                     name: "Vault", status: .done,
                     detail: "Saved \(found.count) file(s) to \(result.outputURL.path)"))
@@ -166,13 +183,19 @@ public struct ArchiveRecipe: Sendable {
         guard await verify(zip: zipURL, projectName: project.url.lastPathComponent, report: &report) else { return report }
 
         do {
-            try trash(project.url)
+            report.projectTrashURL = try trash(project.url)
             report.trashedProject = true
             report.steps.append(ArchiveStep(name: "Move to Trash", status: .done, detail: project.url.path))
         } catch {
             report.steps.append(ArchiveStep(name: "Move to Trash", status: .failed, detail: error.localizedDescription))
         }
         return report
+    }
+
+    @Sendable public static func moveToTrash(_ url: URL) throws -> URL? {
+        var out: NSURL?
+        try FileManager.default.trashItem(at: url, resultingItemURL: &out)
+        return out as URL?
     }
 
     /// Standardizes and resolves symlinks of the deepest existing ancestor, so not-yet-created
@@ -226,5 +249,29 @@ public struct ArchiveRecipe: Sendable {
             report.steps.append(ArchiveStep(name: "Verify zip", status: .failed, detail: error.localizedDescription))
             return false
         }
+    }
+}
+
+/// Journal entries for an archive run: the permanent artifact clean, and the move of the whole
+/// project to the Trash (a Trash-mode entry, so History can put it back).
+public enum ArchiveJournal {
+    public static let ruleID = "recipe.archive"
+
+    public static func reports(for report: ArchiveReport, project: Project, now: Date = Date()) -> [CleanReport] {
+        var out: [CleanReport] = []
+        if let clean = report.cleanReport { out.append(clean) }
+        if report.trashedProject {
+            let candidate = Candidate(
+                id: "\(ruleID)|\(project.url.path)", url: project.url, kind: .projectArtifact,
+                title: "\(project.name) (archived project)", ecosystemID: project.ecosystemIDs.first ?? "generic",
+                ruleID: ruleID, risk: .caution, sizeBytes: 0, projectRoot: project.url)
+            let zip = report.zipURL.map { " after archiving to \($0.path)" } ?? ""
+            out.append(CleanReport(
+                startedAt: now, finishedAt: now, mode: .trash, dryRun: false,
+                items: [CleanItemResult(
+                    candidate: candidate, status: .cleaned, freedBytes: 0,
+                    message: "Project moved to the Trash\(zip)", trashURL: report.projectTrashURL)]))
+        }
+        return out
     }
 }

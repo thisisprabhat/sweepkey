@@ -11,17 +11,22 @@ struct RuleEditorSheet: View {
     @State private var risk = RiskLevel.caution
     @State private var regenerate = ""
 
+    private var draft: Rule {
+        let hint = regenerate.trimmingCharacters(in: .whitespaces)
+        return Rule(
+            id: id.trimmingCharacters(in: .whitespaces), ecosystemID: ecosystemID, markers: markers,
+            target: target.trimmingCharacters(in: .whitespaces), risk: risk, enabledByDefault: true,
+            regenerate: hint.isEmpty ? nil : hint)
+    }
+
+    /// The same validation the engine applies to every rule (`RuleSet.validate`), plus the
+    /// editor's id conventions.
     private var problems: [String] {
-        var result: [String] = []
-        let trimmedID = id.trimmingCharacters(in: .whitespaces)
-        if trimmedID.isEmpty { result.append("Enter an id, e.g. custom.build.") }
-        else if !trimmedID.contains(".") { result.append("The id should look like ecosystem.name.") }
-        else if model.allRules.contains(where: { $0.id == trimmedID }) { result.append("A rule with this id already exists.") }
-        if markers.isEmpty { result.append("Add at least one marker file.") }
-        let trimmedTarget = target.trimmingCharacters(in: .whitespaces)
-        if trimmedTarget.isEmpty { result.append("Enter a target path.") }
-        else if trimmedTarget.hasPrefix("/") || trimmedTarget.split(separator: "/").contains("..") {
-            result.append("The target must be a relative path without '..'.")
+        let rule = draft
+        var result = RuleSet(rules: model.allRules).validate(rule)
+        if !rule.id.isEmpty {
+            if !rule.id.contains(".") { result.append("The id should look like ecosystem.name.") }
+            else if model.allRules.contains(where: { $0.id == rule.id }) { result.append("A rule with this id already exists.") }
         }
         return result
     }
@@ -59,11 +64,8 @@ struct RuleEditorSheet: View {
     }
 
     private func save() {
-        let hint = regenerate.trimmingCharacters(in: .whitespaces)
-        model.settings.customRules.append(Rule(
-            id: id.trimmingCharacters(in: .whitespaces), ecosystemID: ecosystemID, markers: markers,
-            target: target.trimmingCharacters(in: .whitespaces), risk: risk, enabledByDefault: true,
-            regenerate: hint.isEmpty ? nil : hint))
+        guard problems.isEmpty else { return }
+        model.settings.customRules.append(draft)
         dismiss()
     }
 }

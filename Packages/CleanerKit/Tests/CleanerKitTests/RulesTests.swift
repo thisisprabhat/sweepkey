@@ -67,6 +67,9 @@ import Testing
         #expect(!set.validate(rule(target: "a/../b")).isEmpty)
         #expect(!set.validate(rule(target: "/usr")).isEmpty)
         #expect(!set.validate(rule(markers: [])).isEmpty)
+        #expect(!set.validate(rule(target: ".git")).isEmpty)
+        #expect(!set.validate(rule(target: "sub/.GIT/objects")).isEmpty)
+        #expect(set.validate(rule(target: ".github-cache")).isEmpty)
     }
 
     @Test func matcherRequiresMarkerAndTarget() async throws {

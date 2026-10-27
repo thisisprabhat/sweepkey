@@ -9,6 +9,9 @@ struct PackageManagerProvider: CacheProvider {
         var paths: [String]
         var command: (String, [String])?
         var risk: RiskLevel = .safe
+        /// Overrides the default "Re-downloaded automatically by <name>" hint.
+        var hint: String?
+        var note: String?
     }
 
     private var specs: [Spec] {
@@ -30,7 +33,9 @@ struct PackageManagerProvider: CacheProvider {
             Spec(rule: "cocoapods", name: "CocoaPods", paths: ["Library/Caches/CocoaPods"], command: ("pod", ["cache", "clean", "--all"])),
             Spec(rule: "carthage", name: "Carthage", paths: ["Library/Caches/org.carthage.CarthageKit"], command: nil),
             Spec(rule: "composer", name: "Composer", paths: ["Library/Caches/composer"], command: nil),
-            Spec(rule: "gem", name: "RubyGems", paths: [".gem"], command: nil),
+            Spec(rule: "gem", name: "RubyGems", paths: [".gem"], command: nil, risk: .caution,
+                 hint: "Reinstall with `gem install` or `bundle install`",
+                 note: "Holds gems installed with `gem install --user-install`, not only a download cache"),
             Spec(rule: "nuget", name: "NuGet packages", paths: [".nuget/packages"], command: nil),
             Spec(rule: "deno", name: "Deno", paths: ["Library/Caches/deno"], command: nil),
         ]
@@ -43,7 +48,8 @@ struct PackageManagerProvider: CacheProvider {
                 let action = spec.command.map { ctx.action($0.0, $0.1) } ?? .delete
                 items.append(CacheItem(
                     ruleID: "pm.\(spec.rule)", url: ctx.path(rel), title: spec.name, risk: spec.risk,
-                    hint: "Re-downloaded automatically by \(spec.name)", action: action))
+                    hint: spec.hint ?? "Re-downloaded automatically by \(spec.name)", note: spec.note,
+                    action: action))
             }
         }
         // conda: a single command candidate covering every existing pkgs dir.
@@ -72,12 +78,17 @@ struct PackageManagerProvider: CacheProvider {
     private func homebrew(_ ctx: CacheContext) async -> [CacheItem] {
         var cacheURL = ctx.path("Library/Caches/Homebrew")
         var action = CleanAction.delete
+        var title = "Homebrew downloads"
+        var note: String?
         if ctx.resolve("brew") != nil {
             let path = (await ctx.output("brew", ["--cache"]))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !path.isEmpty { cacheURL = URL(fileURLWithPath: path) }
             action = .command(executable: "brew", arguments: ["cleanup", "--prune=all"])
+            // `brew cleanup` also uninstalls outdated versions of installed formulae and casks.
+            title = "Homebrew downloads and old formula versions"
+            note = "Also removes old installed versions of formulae and casks"
         }
-        return [CacheItem(ruleID: "pm.homebrew", url: cacheURL, title: "Homebrew downloads",
-                          hint: "Re-downloaded automatically by Homebrew", action: action)]
+        return [CacheItem(ruleID: "pm.homebrew", url: cacheURL, title: title,
+                          hint: "Re-downloaded automatically by Homebrew", note: note, action: action)]
     }
 }

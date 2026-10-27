@@ -29,7 +29,23 @@ import Foundation
         try await withTempDir { dir in
             let f = dir.appending(path: "s.json")
             try "not json".write(to: f, atomically: true, encoding: .utf8)
-            #expect(SettingsStore(fileURL: f).load() == CleanerSettings())
+            let store = SettingsStore(fileURL: f)
+            #expect(store.load() == CleanerSettings())
+            // The corrupt file was moved aside, not left to be overwritten by the next save.
+            let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            let aside = try #require(names.first { $0.hasPrefix("s.corrupt-") && $0.hasSuffix(".json") })
+            #expect(try String(contentsOf: dir.appending(path: aside), encoding: .utf8) == "not json")
+            #expect(!FileManager.default.fileExists(atPath: f.path))
+            try store.save(CleanerSettings())
+            #expect(try String(contentsOf: dir.appending(path: aside), encoding: .utf8) == "not json")
+        }
+    }
+
+    @Test func missingFileGivesDefaultsWithoutSideEffects() async throws {
+        try await withTempDir { dir in
+            #expect(SettingsStore(fileURL: dir.appending(path: "none.json")).load() == CleanerSettings())
+            let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            #expect(names.isEmpty)
         }
     }
 

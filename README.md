@@ -54,14 +54,14 @@ Developer projects often live in places macOS protects (Desktop, Documents, Down
 ## CLI
 ```sh
 cleaner scan [paths...] [--json] [--stale-only] [--min-size 100MB]
-cleaner clean [paths...] [--dry-run] [--trash] [--stale-only] [--rule <id>]... [--yes]
+cleaner clean [paths...] [--dry-run] [--trash] [--stale-only] [--rule <id>]... [--yes] [--skip-vault]
 cleaner caches [--json]
 cleaner caches clean <group-id>... [--dry-run] [--yes]
 cleaner vault collect <paths...> --to <dest> [--format folder|zip|dmg] [--uncommitted] [--scan-contents]
 cleaner vault restore <vault> [--by-remote <searchRoot>...] [--overwrite] [--dry-run]
 cleaner history [--json]
 ```
-Paths default to your configured scan roots. `clean` prints the plan and asks `Proceed? [y/N]` unless `--yes` is given. Exit codes: `0` ok, `1` error, `2` nothing to do. Always try `--dry-run` first.
+Paths default to your configured scan roots. `clean` prints the plan and asks `Proceed? [y/N]` unless `--yes` is given. When **Require a vault export before cleaning** is on in Settings, a real `clean` first exports the affected projects' secrets (folder format, to the vault destination from Settings, with your collect options) and aborts without deleting anything if that export fails; `--skip-vault` bypasses this explicitly. Exit codes: `0` ok, `1` error, `2` nothing to do. Always try `--dry-run` first.
 
 ## Privacy
 No telemetry, no analytics, no accounts. Everything stays on your Mac, and vault contents leave the machine only if you export them. The only network use is the Sparkle update check, which fetches the appcast from GitHub Releases and is disabled in builds without an update key.
@@ -70,6 +70,11 @@ No telemetry, no analytics, no accounts. Everything stays on your Mac, and vault
 1. Run `scripts/configure-repo.sh <github-owner>` once to replace the `OWNER` placeholder everywhere.
 2. Generate Sparkle keys (`generate_keys`) and add GitHub secrets: `DEVELOPER_ID_CERT_P12` (base64), `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`, `SPARKLE_PRIVATE_KEY`, `SPARKLE_PUBLIC_KEY`.
 3. Push a tag `vX.Y.Z`. [release.yml](.github/workflows/release.yml) archives, signs, notarizes, staples, builds the DMG and appcast, creates the GitHub Release, and prints the cask sha256.
+
+`scripts/release.sh` (used by the workflow, runnable locally) also:
+- signs with `Config/Cleaner.entitlements` and `Config/CleanerWidgets.entitlements` (`CLEANER_APP_ENTITLEMENTS` / `CLEANER_WIDGET_ENTITLEMENTS`), so the shipped widget is sandboxed and shares the App Group `$(TeamIdentifierPrefix)com.prabhatkumar.Cleaner` with the app. The Team-ID prefix form works for Developer ID builds without a provisioning profile; both targets read the resolved id from the `CleanerAppGroup` Info.plist key;
+- refuses to run while `SPARKLE_FEED_URL` (from the environment or `project.yml`) still contains `OWNER`;
+- stamps the release version into `CleanerVersion.current` (the CLI's `--version`) for the build and passes it to the app as `MARKETING_VERSION`.
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md). New cleaning rules are just JSON: [docs/rules.md](docs/rules.md).

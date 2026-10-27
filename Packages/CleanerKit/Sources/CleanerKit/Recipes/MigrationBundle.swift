@@ -61,9 +61,10 @@ public enum MigrationBundle {
     }
 
     /// Writes `repos.json`, `restore.sh` and a folder vault export into `directory`.
+    /// `collect` carries the user's vault settings; its roots are always replaced by `roots`.
     public static func export(
         roots: [URL], to directory: URL, secrets: any SecretFinding, exporter: any VaultExporting,
-        git: GitClient = GitClient(), collect: VaultCollectOptions? = nil
+        git: GitClient = GitClient(), collect: VaultCollectOptions? = nil, keepVersions: Int = 5
     ) async throws -> MigrationResult {
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -84,10 +85,11 @@ public enum MigrationBundle {
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
         let vaultURL = directory.appendingPathComponent("vault", isDirectory: true)
-        let options = collect ?? VaultCollectOptions(roots: roots)
+        var options = collect ?? VaultCollectOptions(roots: roots)
+        options.roots = roots
         let files = try await secrets.findSecrets(options)
         let vault = files.isEmpty ? nil : try await exporter.export(
-            VaultExportRequest(files: files, destination: vaultURL, format: .folder))
+            VaultExportRequest(files: files, destination: vaultURL, format: .folder, keepVersions: keepVersions))
         return MigrationResult(
             directory: directory, reposURL: reposURL, scriptURL: scriptURL, vaultURL: vaultURL,
             repos: entries, vault: vault)

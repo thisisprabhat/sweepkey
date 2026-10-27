@@ -43,9 +43,12 @@ extension AppModel {
         return true
     }
 
+    /// Saves the results, minus projects from one-off folder scans outside the scan roots, so a
+    /// path-limited scan never replaces the saved full scan.
     func persistScanCache() async {
         guard let cache = services.scanCache else { return }
-        do { try await cache.save(projects) } catch { lastError = error.localizedDescription }
+        let saved = ScanMerge.persistable(projects, scanRoots: settings.scanRoots)
+        do { try await cache.save(saved) } catch { lastError = error.localizedDescription }
     }
 
     func runScan(generation: Int? = nil) async {
@@ -54,6 +57,7 @@ extension AppModel {
         scanError = nil
         projects = []
         selection = []
+        temporaryScanRoots = []
         scanState = .scanning(ScanProgress(directoriesVisited: 0, currentPath: "", projectsFound: 0, bytesFound: 0))
         let options = ScanOptions(
             roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
@@ -78,7 +82,7 @@ extension AppModel {
         guard isCurrent() else { return }
         scanError = failure
         if failure == nil { AutomationState.shared.resultsMayBeOutdated = false }
-        cacheGroups = found
+        cacheGroups = OptInCaches.apply(found, overrides: settings.ruleOverrides)
         scanState = .done(summary ?? ScanSummary(
             projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
             totalBytes: projects.reduce(0) { $0 + $1.reclaimableBytes }, startedAt: Date(), finishedAt: Date()))
@@ -165,7 +169,8 @@ extension AppModel {
 
     func evaluateVerdicts(for candidates: [Candidate]) async {
         let safety = services.safetyFor?(settings.pinnedProjects) ?? services.safety
-        let result = await safety.evaluate(candidates, scanRoots: AppLogic.resolve(settings.scanRoots))
+        let roots = AppLogic.resolve(settings.scanRoots + temporaryScanRoots)
+        let result = await safety.evaluate(candidates, scanRoots: roots)
         verdicts.merge(result) { _, new in new }
     }
 }

@@ -232,4 +232,120 @@ private func isBlocked(_ v: SafetyVerdict) -> Bool { if case .blocked = v { true
                 == .blocked("Could not verify git status"))
         }
     }
+
+    // MARK: Final review fixes
+
+    /// Scripted git: `xcode-select -p` succeeds when `available`; every git command fails.
+    private final class ScriptedGit: ShellRunning, @unchecked Sendable {
+        let available: Bool
+        private let lock = NSLock()
+        private var _calls: [String] = []
+        init(available: Bool) { self.available = available }
+        var calls: [String] { lock.withLock { _calls } }
+        func run(_ executable: String, arguments: [String], currentDirectory: URL?, input: Data?, timeout: Duration)
+            async throws -> ShellResult {
+            lock.withLock { _calls.append(([executable] + arguments).joined(separator: " ")) }
+            if executable == "xcode-select" {
+                return ShellResult(exitCode: available ? 0 : 2, stdout: "", stderr: "")
+            }
+            return ShellResult(exitCode: 128, stdout: "", stderr: "fatal: not a git repository")
+        }
+    }
+
+    @Test func pinnedMonorepoProtectsNestedProjects() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let mono = root.appendingPathComponent("mono")
+            let pkg = mono.appendingPathComponent("packages/a")
+            let nested = pkg.appendingPathComponent("node_modules")
+            try write(1, to: nested.appendingPathComponent("f"))
+            let sibling = root.appendingPathComponent("monolith")
+            let siblingNM = sibling.appendingPathComponent("node_modules")
+            try write(1, to: siblingNM.appendingPathComponent("f"))
+            let g = SafetyGuard(git: GitClient(shell: ScriptedGit(available: false)),
+                                home: dir.appendingPathComponent("h"), pinnedProjects: [mono])
+            #expect(await verdict(g, cand(nested, project: pkg), roots: [root]) == .blocked("Pinned project"))
+            // Same string prefix ("mono" vs "monolith") is not containment.
+            #expect(await verdict(g, cand(siblingNM, project: sibling), roots: [root]) == .allowed)
+        }
+    }
+
+    @Test func gitEntryWithFailingGitIsBlocked() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let proj = root.appendingPathComponent("app")
+            let build = proj.appendingPathComponent("build")
+            try write(1, to: build.appendingPathComponent("o"))
+            try FileManager.default.createDirectory(at: proj.appendingPathComponent(".git"), withIntermediateDirectories: true)
+            for available in [true, false] {
+                let shell = ScriptedGit(available: available)
+                let g = SafetyGuard(git: GitClient(shell: shell), gitShell: shell, home: dir.appendingPathComponent("h"))
+                #expect(await verdict(g, cand(build, project: proj), roots: [root]) == .blocked("Could not verify git status"),
+                        "available: \(available)")
+                if !available {
+                    #expect(!shell.calls.contains { $0.contains("rev-parse") }, "git must not run without the CLT")
+                }
+            }
+        }
+    }
+
+    @Test func gitFileEntryCountsAsRepository() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let proj = root.appendingPathComponent("worktree")
+            let build = proj.appendingPathComponent("build")
+            try write(1, to: build.appendingPathComponent("o"))
+            try writeText("gitdir: /elsewhere/.git/worktrees/x\n", to: proj.appendingPathComponent(".git"))
+            let shell = ScriptedGit(available: true)
+            let g = SafetyGuard(git: GitClient(shell: shell), gitShell: shell, home: dir.appendingPathComponent("h"))
+            #expect(await verdict(g, cand(build, project: proj), roots: [root]) == .blocked("Could not verify git status"))
+        }
+    }
+
+    @Test func noGitEntryWithFailingGitIsNotBlockedByGitRule() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let proj = root.appendingPathComponent("app")
+            let build = proj.appendingPathComponent("build")
+            try write(1, to: build.appendingPathComponent("o"))
+            for available in [true, false] {
+                let shell = ScriptedGit(available: available)
+                let g = SafetyGuard(git: GitClient(shell: shell), gitShell: shell, home: dir.appendingPathComponent("h"))
+                #expect(await verdict(g, cand(build, project: proj), roots: [root]) == .allowed)
+            }
+        }
+    }
+
+    @Test func gitAvailabilityCheckedOncePerEvaluation() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            var cands: [Candidate] = []
+            for i in 0..<20 {
+                let proj = root.appendingPathComponent("p\(i)")
+                let nm = proj.appendingPathComponent("node_modules")
+                try write(1, to: nm.appendingPathComponent("f"))
+                cands.append(cand(nm, project: proj))
+            }
+            let shell = ScriptedGit(available: false)
+            let g = SafetyGuard(git: GitClient(shell: shell), gitShell: shell, home: dir.appendingPathComponent("h"))
+            let result = await g.evaluate(cands, scanRoots: [root])
+            #expect(result.count == 20 && result.values.allSatisfy { $0 == .allowed })
+            #expect(shell.calls.filter { $0.hasPrefix("xcode-select") }.count == 1)
+        }
+    }
+
+    @Test func gitMetadataIsAlwaysBlocked() async throws {
+        try await withTempDir { dir in
+            let root = dir.appendingPathComponent("Projects")
+            let proj = root.appendingPathComponent("app")
+            let gitDir = proj.appendingPathComponent(".git")
+            try write(1, to: gitDir.appendingPathComponent("objects/pack/x"))
+            let g = SafetyGuard(git: GitClient(shell: ScriptedGit(available: false)), home: dir.appendingPathComponent("h"))
+            #expect(await verdict(g, cand(gitDir, project: proj), roots: [root]) == .blocked("Git metadata (.git)"))
+            #expect(await verdict(g, cand(gitDir.appendingPathComponent("objects"), project: proj), roots: [root])
+                == .blocked("Git metadata (.git)"))
+            let cache = cand(dir.appendingPathComponent("h/.GIT/x"), kind: .globalCache)
+            #expect(await verdict(g, cache, roots: []) == .blocked("Git metadata (.git)"))
+        }
+    }
 }

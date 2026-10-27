@@ -96,7 +96,68 @@ import Testing
             let found = try await SecretFinder().findSecrets(VaultCollectOptions(
                 roots: [root], excludedPaths: [root.appendingPathComponent("skip")], maxFileSizeBytes: 1000))
             #expect(found.map(\.vaultPath) == ["plain/small.pem"])
+            let (_, warnings) = try await SecretFinder().findSecretsWithWarnings(VaultCollectOptions(
+                roots: [root], excludedPaths: [root.appendingPathComponent("skip")], maxFileSizeBytes: 1000))
+            #expect(warnings.count == 1)
+            #expect(warnings.first?.contains("big.pem") == true)
         }
+    }
+
+    @Test(.enabled(if: vaultGitAvailable))
+    func oversizedUncommittedWorkIsWarned() async throws {
+        try await withTempDir { dir in
+            let (root, app) = try makeFixtureRepo(in: dir)
+            try write(5000, to: app.appendingPathComponent("notes/draft.txt"))
+            let (files, warnings) = try await SecretFinder().findSecretsWithWarnings(VaultCollectOptions(
+                roots: [root], includeUncommittedWork: true, maxFileSizeBytes: 1000))
+            #expect(!files.contains { $0.vaultPath.hasSuffix("draft.txt") })
+            #expect(warnings.contains { $0.contains("draft.txt") && $0.contains("uncommittedWork") })
+        }
+    }
+
+    @Test
+    func sameNamedRootsGetDistinctVaultFolders() async throws {
+        try await withTempDir { dir in
+            let first = dir.appendingPathComponent("a/Projects")
+            let second = dir.appendingPathComponent("b/Projects")
+            try writeText("A=1", to: first.appendingPathComponent("app/.env"))
+            try writeText("B=1", to: second.appendingPathComponent("app/.env"))
+            let found = try await SecretFinder(git: GitClient(shell: NoGitShell()))
+                .findSecrets(VaultCollectOptions(roots: [first, second]))
+            let hash = VaultLayout.shortHash(second.standardizedFileURL.resolvingSymlinksInPath().path)
+            #expect(Set(found.map(\.vaultPath)) == ["Projects/app/.env", "Projects-\(hash)/app/.env"])
+            #expect(hash.count == 8)
+            // Both files survive the export; the manifest is keyed by the distinct vault paths.
+            let vault = dir.appendingPathComponent("vault")
+            let result = try await VaultExporter().export(.init(files: found, destination: vault, format: .folder))
+            #expect(result.copiedCount == 2 && result.manifest.entries.count == 2)
+            #expect(try String(contentsOf: vault.appendingPathComponent("Projects/app/.env"), encoding: .utf8) == "A=1")
+            #expect(try String(contentsOf: vault.appendingPathComponent("Projects-\(hash)/app/.env"), encoding: .utf8) == "B=1")
+            // A single root keeps the plain name, so existing vaults are unchanged.
+            let single = try await SecretFinder(git: GitClient(shell: NoGitShell()))
+                .findSecrets(VaultCollectOptions(roots: [second]))
+            #expect(single.map(\.vaultPath) == ["Projects/app/.env"])
+        }
+    }
+
+    @Test
+    func layoutNamesAndRebase() {
+        let a = URL(fileURLWithPath: "/x/Projects"), b = URL(fileURLWithPath: "/y/projects"), c = URL(fileURLWithPath: "/z/Work")
+        let names = VaultLayout.rootNames([a, b, c, a])
+        #expect(names[0] == "Projects")
+        #expect(names[1] == "projects-\(VaultLayout.shortHash("/y/projects"))")
+        #expect(names[2] == "Work")
+        #expect(names[3] == "Projects")
+        let file = SecretFile(
+            sourceURL: URL(fileURLWithPath: "/y/projects/app/sub/.env"), scanRoot: URL(fileURLWithPath: "/y/projects/app"),
+            vaultPath: "app/sub/.env", reason: .ignoredMatch, matchedRule: ".env", sizeBytes: 1)
+        let outside = SecretFile(
+            sourceURL: URL(fileURLWithPath: "/elsewhere/app/.env"), scanRoot: URL(fileURLWithPath: "/elsewhere/app"),
+            vaultPath: "app/.env", reason: .ignoredMatch, matchedRule: ".env", sizeBytes: 1)
+        let rebased = VaultLayout.rebase([file, outside], scanRoots: [a, b, c])
+        #expect(rebased[0].vaultPath == "\(names[1])/app/sub/.env")
+        #expect(rebased[0].scanRoot.path == "/y/projects")
+        #expect(rebased[1].vaultPath == "app/.env")
     }
 
     @Test
@@ -144,4 +205,10 @@ import Testing
         #expect(paths.contains("Root/app/pubspec.yaml"))
         #expect(!paths.contains { $0.contains("upload.jks") })
     }
+}
+
+/// A shell where `xcode-select -p` fails, so the finder never runs git (plain pattern walk).
+struct NoGitShell: ShellRunning {
+    func run(_ executable: String, arguments: [String], currentDirectory: URL?, input: Data?, timeout: Duration)
+        async throws -> ShellResult { ShellResult(exitCode: 1, stdout: "", stderr: "no developer tools") }
 }

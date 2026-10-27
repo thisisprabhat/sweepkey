@@ -14,6 +14,8 @@
 #   KEYCHAIN             optional keychain holding the signing identity
 #   SIGN_IDENTITY        default: "Developer ID Application"
 #   SPARKLE_PUBLIC_KEY   EdDSA public key baked into the app (empty disables the updater)
+#   SPARKLE_FEED_URL     appcast URL (default: the value in project.yml); must not contain the
+#                        OWNER placeholder (run scripts/configure-repo.sh first)
 # Credentials are never passed on the command line.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,12 +23,28 @@ cd "$(dirname "$0")/.."
 VERSION="${1:?usage: release.sh <version> [build-number] [output-dir]}"
 BUILD="${2:-$(git rev-list --count HEAD)}"
 OUT="${3:-build/release}"
+[[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]] || { echo "error: invalid version '$VERSION'" >&2; exit 1; }
 : "${APPLE_TEAM_ID:?APPLE_TEAM_ID is required}"
 PROFILE="${NOTARY_PROFILE:-cleaner-notary}"
 IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
 KC_ARGS=()
 NOTARY_KC=()
 if [ -n "${KEYCHAIN:-}" ]; then KC_ARGS=(--keychain "$KEYCHAIN"); NOTARY_KC=(--keychain "$KEYCHAIN"); fi
+
+FEED_URL="${SPARKLE_FEED_URL:-$(sed -nE 's/^[[:space:]]*SPARKLE_FEED_URL:[[:space:]]*//p' project.yml | head -n 1)}"
+case "$FEED_URL" in
+  "") echo "error: SPARKLE_FEED_URL is empty" >&2; exit 1 ;;
+  *OWNER*) echo "error: SPARKLE_FEED_URL still contains the OWNER placeholder ($FEED_URL). Run scripts/configure-repo.sh <owner>." >&2; exit 1 ;;
+esac
+
+# The CLI version comes from one place, CleanerKit's CleanerVersion.current; stamp it for this
+# release and put the file back afterwards.
+VERSION_FILE=Packages/CleanerKit/Sources/CleanerKit/CLISupport/Version.swift
+VERSION_BACKUP=$(mktemp)
+cp "$VERSION_FILE" "$VERSION_BACKUP"
+trap 'cp "$VERSION_BACKUP" "$VERSION_FILE"; rm -f "$VERSION_BACKUP"' EXIT
+sed -i '' -E "s/(public static let current = )\"[^\"]*\"/\1\"$VERSION\"/" "$VERSION_FILE"
+grep -q "public static let current = \"$VERSION\"" "$VERSION_FILE" || { echo "error: could not stamp $VERSION_FILE" >&2; exit 1; }
 
 sign() { codesign --force --options runtime --timestamp ${KC_ARGS[@]+"${KC_ARGS[@]}"} --sign "$IDENTITY" "$@"; }
 notarize() {
@@ -45,7 +63,9 @@ xcodegen generate
 xcodebuild -project Cleaner.xcodeproj -scheme Cleaner -configuration Release \
   -archivePath "$OUT/Cleaner.xcarchive" \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
-  SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-}" \
+  SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-}" SPARKLE_FEED_URL="$FEED_URL" \
+  CLEANER_APP_ENTITLEMENTS=Config/Cleaner.entitlements \
+  CLEANER_WIDGET_ENTITLEMENTS=Config/CleanerWidgets.entitlements \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="$IDENTITY" \
   OTHER_CODE_SIGN_FLAGS="--timestamp ${KEYCHAIN:+--keychain $KEYCHAIN}" \

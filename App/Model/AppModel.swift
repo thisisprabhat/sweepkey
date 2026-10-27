@@ -37,6 +37,11 @@ final class AppModel {
     @ObservationIgnored var scanTask: Task<Void, Never>?
     /// Bumped by every scan start and cancel; a scan only writes state while its token is current.
     @ObservationIgnored var scanGeneration = 0
+    /// Folders scanned on request (Services menu, `cleaner://scan?path=`) that are not scan roots.
+    /// They count as scan roots for safety checks until the next full scan.
+    var temporaryScanRoots: [URL] = []
+    /// A `cleaner://scan?path=` request outside the scan roots, waiting for in-app confirmation.
+    var pendingPathScan: [URL] = []
     /// Bumped after a clean so disk gauges re-read free space.
     var diskRefreshToken = 0
 
@@ -59,6 +64,10 @@ final class AppModel {
     var cleanPhase: CleanPhase = .idle
     var cleanMode: DeleteMode = .permanent
     var isCleanSheetPresented = false
+    /// The running GUI clean, kept so the progress view can cancel it.
+    @ObservationIgnored var cleanTask: Task<Void, Never>?
+    /// Volume free space before and after the last real GUI clean.
+    var cleanFreeSpace: FreeSpaceDelta?
 
     // History
     var reports: [CleanReport] = []
@@ -68,7 +77,9 @@ final class AppModel {
     var putBackDone: Set<UUID> = []
 
     // Vault
-    var vaultOptions: VaultCollectOptions
+    /// Session-only changes made on the Vault screen. They layer over the settings, which stay the
+    /// single source of truth (see `vaultOptions`).
+    var vaultOverrides = VaultCollectOverrides()
     var findings: [SecretFile] = []
     var findingsSelection: Set<SecretFile.ID> = []
     var isFindingSecrets = false
@@ -80,6 +91,8 @@ final class AppModel {
     var openedVault: OpenedVault?
     var restoreStrategy: RestoreStrategy = .originalPaths
     var restoreActions: [RestoreAction] = []
+    /// Manifest entries the plan left out, and why.
+    var restoreWarnings: [String] = []
     var restoreSelection: Set<RestoreAction.ID> = []
     var restoreOverwrite = false
     var restoreResult: RestoreResult?
@@ -95,10 +108,6 @@ final class AppModel {
         let loaded = services.settingsStore.load()
         settings = loaded
         cleanMode = loaded.defaultDeleteMode
-        vaultOptions = VaultCollectOptions(
-            roots: loaded.scanRoots, excludedPaths: loaded.excludedPaths,
-            extraPatterns: loaded.vault.extraPatterns, alwaysCollect: loaded.vault.alwaysCollect,
-            includeUncommittedWork: loaded.vault.includeUncommittedWork, scanContents: loaded.vault.scanContents)
     }
 
     private func persistSettings() {

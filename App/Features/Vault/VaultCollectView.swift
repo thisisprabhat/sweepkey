@@ -12,7 +12,7 @@ struct VaultCollectView: View {
             Divider()
             if !model.vaultWarnings.isEmpty && !model.isFindingSecrets {
                 VStack(alignment: .leading, spacing: 2) {
-                    Label("Some repositories could not be queried; their files were collected by pattern only.",
+                    Label("Some files need attention: repositories git could not query were collected by pattern only, and files over the size limit were skipped.",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.callout.weight(.medium))
                     ForEach(model.vaultWarnings, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }

@@ -61,7 +61,7 @@ Built-in ecosystem ids: `javascript`, `python`, `flutter`, `android`, `jvm`, `ru
 Catalog conventions: `*` rules are `enabledByDefault: false` with `risk: caution`; everything else is `safe`, except Unity `Library` and Unreal `DerivedDataCache`, which are `caution`.
 
 ### Customization
-- Custom rule editor in Settings: add a rule with a marker, globs and risk level, with a live preview of what it would match. Rules can be imported and exported.
+- Custom rule editor: add a rule with a marker, globs and risk level (validated with `RuleSet.validate`; a `.git` target is rejected). A live preview of what it would match, and rule import/export, are planned for v1.1 ([08](08-roadmap.md)).
 - Per-rule enable/disable overrides (`ruleOverrides`, ruleID to enabled) and custom rules (`customRules`) are stored in settings.
 - Per-project `.cleanerignore` and a global exclude list. Projects can be pinned so they are never cleaned.
 
@@ -77,6 +77,7 @@ Where a tool has its own cleanup command, use it instead of deleting files by ha
 - **Browsers and test tools**: Playwright, Puppeteer, Cypress, Electron, node-gyp caches.
 - **IDEs**: JetBrains caches, logs and old version folders; old VS Code, Cursor and Windsurf extension versions and caches.
 - **AI/ML models (opt-in, high risk)**: Hugging Face cache, Ollama models, LM Studio models.
-- **Misc (opt-in)**: `~/Library/Caches/*` for dev tools, CrashReporter and diagnostic logs, iOS device backups in `MobileSync` (strong warning).
+- **Misc**: crash and diagnostic reports (`~/Library/Logs/DiagnosticReports`, Caution, opt-in: hidden unless enabled in Settings > General > Caches, also honoured by the CLI) and iOS device backups in `MobileSync` (Danger, strong warning). `~/Library/Caches/*` dev-tool items are planned for v1.1 ([08](08-roadmap.md)).
+- **Risk of tool-native cleanups**: `docker image prune -af` and `docker container prune -f` are Caution (they remove locally built images and stopped containers' changes), as is `~/.gem` (user-installed gems, not just a download cache). The Homebrew item runs `brew cleanup --prune=all`, which also removes old installed formula versions, and says so.
 
 Each provider produces `Candidate`s grouped into a `CacheGroup` by `CacheCategory` (`xcode`, `android`, `packageManager`, `versionManager`, `container`, `browserTesting`, `ide`, `aiModels`, `misc`). A candidate's `action` is `.delete` or `.command(executable:arguments:)` for tool-native cleanup (for example `docker system prune -f`). See [07](07-architecture.md).

@@ -13,7 +13,7 @@ extension AppModel {
         isFindingSecrets = true
         defer { isFindingSecrets = false }
         do {
-            let result = try await collectSecrets(resolvedVaultOptions)
+            let result = try await collectSecrets(vaultOptions)
             findings = result.files
             vaultWarnings = result.warnings
             findingsSelection = Set(findings.map(\.id))
@@ -23,12 +23,9 @@ extension AppModel {
         }
     }
 
-    private var resolvedVaultOptions: VaultCollectOptions {
-        var options = vaultOptions
-        options.roots = AppLogic.resolve(options.roots)
-        options.excludedPaths = AppLogic.resolve(options.excludedPaths)
-        return options
-    }
+    /// What the Vault screen collects: the current settings (read every time, so a first-launch
+    /// setup or a later settings change is picked up) with the session overrides on top. Resolved.
+    var vaultOptions: VaultCollectOptions { vaultOverrides.applied(to: settings) }
 
     /// Uses the warning-aware finder when the services provide one.
     func collectSecrets(_ options: VaultCollectOptions) async throws -> (files: [SecretFile], warnings: [String]) {
@@ -82,17 +79,27 @@ extension AppModel {
     func planRestore() async {
         guard let vault = openedVault else { return }
         do {
-            restoreActions = try await services.vaultRestorer.planRestore(vault, strategy: resolvedStrategy)
+            if let restorer = services.vaultRestorer as? VaultRestorer {
+                let plan = try await restorer.planRestoreWithWarnings(vault, strategy: resolvedStrategy)
+                restoreActions = plan.actions
+                restoreWarnings = plan.warnings
+            } else {
+                restoreActions = try await services.vaultRestorer.planRestore(vault, strategy: resolvedStrategy)
+                restoreWarnings = []
+            }
             restoreSelection = Set(restoreActions.filter { !$0.identical }.map(\.id))
         } catch {
             lastError = error.localizedDescription
         }
     }
 
+    /// The actions the Restore button would run.
+    var chosenRestoreActions: [RestoreAction] { restoreActions.filter { restoreSelection.contains($0.id) } }
+
     func runRestore() async {
         isRestoring = true
         defer { isRestoring = false }
-        let chosen = restoreActions.filter { restoreSelection.contains($0.id) }
+        let chosen = chosenRestoreActions
         do {
             restoreResult = try await services.vaultRestorer.restore(chosen, overwrite: restoreOverwrite)
         } catch {
@@ -104,6 +111,7 @@ extension AppModel {
         if let vault = openedVault { await services.vaultRestorer.close(vault) }
         openedVault = nil
         restoreActions = []
+        restoreWarnings = []
         restoreResult = nil
     }
 }

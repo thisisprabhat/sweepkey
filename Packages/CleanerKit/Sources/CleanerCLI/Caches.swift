@@ -14,7 +14,8 @@ struct CachesCommand: AsyncParsableCommand {
         var json = false
 
         func run() async throws {
-            let groups = await GlobalCacheScanner().scanCaches()
+            let overrides = SettingsStore().load().ruleOverrides
+            let groups = OptInCaches.apply(await GlobalCacheScanner().scanCaches(), overrides: overrides)
                 .filter { !$0.candidates.isEmpty }
                 .sorted { $0.totalBytes > $1.totalBytes }
             if json {
@@ -50,7 +51,8 @@ struct CachesCommand: AsyncParsableCommand {
 
         func run() async throws {
             guard !groupIDs.isEmpty else { throw CLIError("Give at least one cache group id.") }
-            let groups = await GlobalCacheScanner().scanCaches()
+            let settings = SettingsStore().load()
+            let groups = OptInCaches.apply(await GlobalCacheScanner().scanCaches(), overrides: settings.ruleOverrides)
             let known = Set(groups.map(\.id))
             let unknown = groupIDs.filter { !known.contains($0) }
             guard unknown.isEmpty else {
@@ -59,7 +61,7 @@ struct CachesCommand: AsyncParsableCommand {
             let wanted = Set(groupIDs)
             let candidates = groups.filter { wanted.contains($0.id) }.flatMap(\.candidates)
             try await runCleanFlow(
-                candidates: candidates, scanRoots: [], settings: SettingsStore().load(),
+                candidates: candidates, scanRoots: [], settings: settings,
                 dryRun: dryRun, trash: trash, yes: yes)
         }
     }

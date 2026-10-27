@@ -18,12 +18,11 @@ enum AppRouter {
         case "scan":
             let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             let paths = items.filter { $0.name == "path" }.compactMap(\.value).filter { !$0.isEmpty }
-            Task {
-                if paths.isEmpty {
-                    model.scan()
-                } else {
-                    await model.scanPaths(paths.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) })
-                }
+            if paths.isEmpty {
+                model.scan()
+            } else {
+                model.requestPathScan(
+                    paths.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }, fromURL: true)
             }
         case "clean-safe":
             Task { await model.presentSafeCleanSheet() }
@@ -58,7 +57,7 @@ final class ServicesProvider: NSObject {
         }
         Task { @MainActor in
             AppRouter.showApp()
-            await AppModel.shared.scanPaths(urls)
+            AppModel.shared.requestPathScan(urls, fromURL: false)
         }
     }
 }

@@ -17,14 +17,30 @@ extension AppModel {
     func runArchive(
         project: Project, vaultDestination: URL, archiveDirectory: URL?, zip: Bool, acknowledgeRisks: Bool
     ) async -> ArchiveReport {
+        // Shares the clean guard with the GUI and automation cleans.
+        let automation = AutomationState.shared
+        if automation.isCleaning {
+            var busy = ArchiveReport()
+            busy.steps.append(ArchiveStep(name: "Archive", status: .failed, detail: "Another clean is already running."))
+            return busy
+        }
+        automation.isCleaning = true
+        defer { automation.isCleaning = false }
+
         let recipe = ArchiveRecipe(
             secrets: services.secrets, exporter: services.vaultExporter, cleaner: services.cleaner,
-            safety: SafetyBridge(base: services.safety, scanRoots: settings.scanRoots))
+            safety: SafetyBridge(base: services.safetyFor?(settings.pinnedProjects) ?? services.safety,
+                                 scanRoots: AppLogic.resolve(settings.scanRoots)))
         let report = await recipe.run(
-            project: project, vaultDestination: vaultDestination, archiveDirectory: archiveDirectory,
-            zip: zip, acknowledgeRisks: acknowledgeRisks)
-        if let cleanReport = report.cleanReport {
-            do { try await services.journal.append(cleanReport) } catch { lastError = error.localizedDescription }
+            project: project, vaultDestination: vaultDestination.standardizedFileURL.resolvingSymlinksInPath(),
+            archiveDirectory: archiveDirectory, zip: zip, acknowledgeRisks: acknowledgeRisks,
+            collect: currentVaultCollectOptions, layoutRoots: AppLogic.resolve(settings.scanRoots),
+            keepVersions: settings.vault.keepVersions)
+        let entries = ArchiveJournal.reports(for: report, project: project)
+        if !entries.isEmpty {
+            for entry in entries {
+                do { try await services.journal.append(entry) } catch { lastError = error.localizedDescription }
+            }
             diskRefreshToken += 1
             await loadJournal()
         }
@@ -36,12 +52,15 @@ extension AppModel {
                 projects[i].candidates.removeAll { cleaned.contains($0.id) }
             }
         }
+        if report.trashedProject || report.freedBytes > 0 { await persistScanCache() }
         return report
     }
 
     func exportMigration(to directory: URL) async throws -> MigrationResult {
         try await MigrationBundle.export(
-            roots: settings.scanRoots, to: directory, secrets: services.secrets, exporter: services.vaultExporter)
+            roots: AppLogic.resolve(settings.scanRoots), to: directory, secrets: services.secrets,
+            exporter: services.vaultExporter, collect: currentVaultCollectOptions,
+            keepVersions: settings.vault.keepVersions)
     }
 }
 

@@ -2,8 +2,25 @@ import Foundation
 
 /// Data the app shares with the widget through the App Group container.
 struct WidgetSnapshot: Codable, Equatable {
-    static let appGroup = "group.com.prabhatkumar.Cleaner"
+    /// Info.plist key holding the resolved App Group id, `$(TeamIdentifierPrefix)com.prabhatkumar.Cleaner`.
+    static let appGroupInfoKey = "CleanerAppGroup"
     static let fileName = "widget-snapshot.json"
+
+    /// The App Group id from Info.plist, or nil when the build has no team (ad-hoc builds leave
+    /// the Team ID prefix empty, and then there is no shared container to use).
+    static var appGroup: String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: appGroupInfoKey) as? String else { return nil }
+        return validatedAppGroup(value)
+    }
+
+    /// Accepts only "<10-character Team ID>.<identifier>".
+    static func validatedAppGroup(_ value: String) -> String? {
+        let parts = value.split(separator: ".", maxSplits: 1)
+        guard parts.count == 2, parts[0].count == 10, !parts[1].isEmpty,
+              parts[0].allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) })
+        else { return nil }
+        return value
+    }
 
     var freeBytes: Int64
     var totalBytes: Int64
@@ -15,7 +32,8 @@ struct WidgetSnapshot: Codable, Equatable {
     }
 
     static func fileURL() -> URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?
+        guard let appGroup else { return nil }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?
             .appendingPathComponent(fileName)
     }
 

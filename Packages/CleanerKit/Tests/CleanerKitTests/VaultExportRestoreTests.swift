@@ -23,6 +23,15 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
     return (root, [try makeFile(jks, root: root), try makeFile(root.appendingPathComponent("app/.env"), root: root)], jks)
 }
 
+/// Never the real Trash: files a restore replaces are moved into `<dir>/TestTrash`.
+private func testRestorer(_ dir: URL) -> VaultRestorer {
+    let bin = dir.appendingPathComponent("TestTrash", isDirectory: true)
+    return VaultRestorer(trash: { url in
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: url, to: bin.appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent))
+    })
+}
+
 @Suite struct VaultExportRestoreTests {
     @Test
     func folderExportMirrorsModeAndManifest() async throws {
@@ -78,12 +87,76 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             let r = try await ProcessShellRunner().run("/usr/bin/zipinfo", ["-1", zip.path])
             #expect(r.stdout.contains("Root/app/android/app/upload.jks"))
             #expect(r.stdout.contains("manifest.json"))
-            let restorer = VaultRestorer()
+            let restorer = testRestorer(dir)
             let opened = try await restorer.open(zip, password: nil)
             #expect(opened.manifest.entries.count == 2)
             await restorer.close(opened)
             #expect(!FileManager.default.fileExists(atPath: opened.root.path))
         }
+    }
+
+    @Test
+    func zipAndImageOutputsAreOwnerOnly() async throws {
+        try await withTempDir { dir in
+            let (_, files, _) = try fixture(dir)
+            let zip = dir.appendingPathComponent("out/v.zip")
+            _ = try await VaultExporter().export(.init(files: files, destination: zip, format: .zip))
+            #expect(try perms(zip) == 0o600)
+        }
+    }
+
+    @Test
+    func overwriteFailsSafelyWhenTrashFails() async throws {
+        struct NoTrash: Error {}
+        try await withTempDir { dir in
+            let (_, files, jks) = try fixture(dir)
+            let vault = dir.appendingPathComponent("vault")
+            _ = try await VaultExporter().export(.init(files: files, destination: vault, format: .folder))
+            let restorer = VaultRestorer(trash: { _ in throw NoTrash() })
+            let opened = try await restorer.open(vault, password: nil)
+            try writeText("CHANGED", to: jks)
+            let plan = try await restorer.planRestore(opened, strategy: .originalPaths)
+            let res = try await restorer.restore(plan.filter { $0.destinationURL == jks }, overwrite: true)
+            #expect(res.failed.count == 1 && res.restored.isEmpty)
+            #expect(try String(contentsOf: jks, encoding: .utf8) == "CHANGED")
+            let leftovers = try FileManager.default.contentsOfDirectory(atPath: jks.deletingLastPathComponent().path)
+            #expect(leftovers == ["upload.jks"])
+        }
+    }
+
+    @Test
+    func planSkipsEntriesWhoseSourceDoesNotMatchVaultPath() async throws {
+        try await withTempDir { dir in
+            let (_, files, _) = try fixture(dir)
+            let vault = dir.appendingPathComponent("vault")
+            _ = try await VaultExporter().export(.init(files: files, destination: vault, format: .folder))
+            // Tamper with the manifest: aim the .env entry at an unrelated file.
+            let manifestURL = vault.appendingPathComponent("manifest.json")
+            var manifest = try JSONDecoder.vault.decode(VaultManifest.self, from: Data(contentsOf: manifestURL))
+            let i = try #require(manifest.entries.firstIndex { $0.vaultPath == "Root/app/.env" })
+            manifest.entries[i].sourcePath = dir.appendingPathComponent("Library/LaunchAgents/evil.plist").path
+            try VaultCoding.encoder().encode(manifest).write(to: manifestURL)
+            let restorer = testRestorer(dir)
+            let opened = try await restorer.open(vault, password: nil)
+            let (actions, warnings) = try await restorer.planRestoreWithWarnings(opened, strategy: .originalPaths)
+            #expect(actions.map(\.entry.vaultPath) == ["Root/app/android/app/upload.jks"])
+            #expect(warnings.count == 1 && warnings[0].contains("Root/app/.env"))
+        }
+    }
+
+    @Test
+    func sourceMatchRules() {
+        func entry(_ vaultPath: String, _ source: String) -> VaultManifestEntry {
+            VaultManifestEntry(vaultPath: vaultPath, sourcePath: source, sha256: "", sizeBytes: 0,
+                               collectedAt: Date(), reason: .patternMatch)
+        }
+        #expect(VaultRestorer.sourceMatchesVaultPath(entry("Projects/app/.env", "/Users/me/Projects/app/.env")))
+        #expect(VaultRestorer.sourceMatchesVaultPath(entry("Projects-1a2b3c4d/app/.env", "/Volumes/W/Projects/app/.env")))
+        #expect(!VaultRestorer.sourceMatchesVaultPath(entry("Projects/app/.env", "/Users/me/other/.env")))
+        #expect(!VaultRestorer.sourceMatchesVaultPath(entry("Projects/app/.env", "relative/app/.env")))
+        #expect(!VaultRestorer.sourceMatchesVaultPath(entry("Projects/app/.env", "/x/../app/.env")))
+        #expect(!VaultRestorer.sourceMatchesVaultPath(entry("Projects", "/Users/me/Projects")))
+        #expect(!VaultRestorer.sourceMatchesVaultPath(entry("../app/.env", "/app/.env")))
     }
 
     @Test
@@ -103,7 +176,7 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             let original = try Data(contentsOf: jks)
             let dmg = dir.appendingPathComponent("v.dmg")
             _ = try await VaultExporter().export(.init(files: files, destination: dmg, format: .encryptedImage, password: "pw-123"))
-            let restorer = VaultRestorer()
+            let restorer = testRestorer(dir)
             await #expect(throws: VaultError.wrongPassword) { try await restorer.open(dmg, password: "nope") }
             await #expect(throws: VaultError.passwordRequired) { try await restorer.open(dmg, password: nil) }
 
@@ -133,7 +206,7 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             let (_, files, jks) = try fixture(dir)
             let vault = dir.appendingPathComponent("vault")
             _ = try await VaultExporter().export(.init(files: files, destination: vault, format: .folder))
-            let restorer = VaultRestorer()
+            let restorer = testRestorer(dir)
             let opened = try await restorer.open(vault, password: nil)
             try writeText("CHANGED", to: jks)
             let envURL = jks.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".env")
@@ -150,6 +223,10 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             res = try await restorer.restore(plan, overwrite: true)
             #expect(res.restored == ["Root/app/android/app/upload.jks"])
             #expect(try String(contentsOf: jks, encoding: .utf8) == "KEYSTORE-1")
+            // The overwritten file went to the (test) Trash, not into the void.
+            let binned = try FileManager.default.contentsOfDirectory(atPath: dir.appendingPathComponent("TestTrash").path)
+            #expect(binned.count == 1)
+            #expect(try String(contentsOf: dir.appendingPathComponent("TestTrash/\(binned[0])"), encoding: .utf8) == "CHANGED")
 
             // symlink destination fails, target untouched
             let target = dir.appendingPathComponent("target.txt")
@@ -196,7 +273,7 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             let (_, files, jks) = try fixture(dir)
             let vault = dir.appendingPathComponent("vault")
             _ = try await VaultExporter().export(.init(files: files, destination: vault, format: .folder))
-            let restorer = VaultRestorer()
+            let restorer = testRestorer(dir)
             let opened = try await restorer.open(vault, password: nil)
             let real = dir.appendingPathComponent("elsewhere", isDirectory: true)
             try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
@@ -246,7 +323,7 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             }
             #expect(!FileManager.default.fileExists(atPath: fresh.appendingPathComponent(".env").path))
 
-            let restorer = VaultRestorer()
+            let restorer = testRestorer(dir)
             let opened = try await restorer.open(vault, password: nil)
             let plan = try await restorer.planRestore(opened, strategy: .matchGitRemote(searchRoots: [clones]))
             #expect(plan.count == 3)

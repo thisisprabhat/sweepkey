@@ -1,6 +1,9 @@
 import Foundation
 
 public struct CleanExecutor: CleanExecuting {
+    /// Message on items skipped because the run was cancelled.
+    public static let cancelledMessage = "Cancelled"
+
     private let shell: ShellRunning
     private let sizer: SizeCalculator
     private let journal: CleanJournaling?
@@ -28,7 +31,7 @@ public struct CleanExecutor: CleanExecuting {
         for (index, c) in candidates.enumerated() {
             let item: CleanItemResult
             if Task.isCancelled {
-                item = CleanItemResult(candidate: c, status: .skipped, message: "Cancelled")
+                item = CleanItemResult(candidate: c, status: .skipped, message: Self.cancelledMessage)
             } else if dryRun {
                 item = CleanItemResult(candidate: c, status: .dryRun, freedBytes: c.sizeBytes)
             } else {
@@ -109,9 +112,21 @@ public struct CleanExecutor: CleanExecuting {
             }
             let after = sizer.allocatedSize(of: c.url)
             return CleanItemResult(candidate: c, status: .cleaned, freedBytes: max(0, before - after))
+        } catch is CancellationError {
+            // The run was cancelled while the tool ran; the shell runner terminated it.
+            return CleanItemResult(candidate: c, status: .skipped, message: Self.cancelledMessage)
         } catch {
             return CleanItemResult(candidate: c, status: .failed, message: "\(error)")
         }
+    }
+
+    /// True for the home Trash (`~/.Trash/...`) and an external volume's per-user Trash
+    /// (`/Volumes/<name>/.Trashes/<uid>/...`), where `trashItem` puts items from other volumes.
+    static func isInTrash(_ url: URL) -> Bool {
+        let comps = url.standardizedFileURL.pathComponents
+        if comps.contains(".Trash") { return true }
+        guard let i = comps.firstIndex(of: ".Trashes"), i + 2 < comps.count else { return false }
+        return Int(comps[i + 1]) != nil
     }
 
     public func putBack(_ items: [CleanItemResult]) async -> [CleanItemResult] {
@@ -121,7 +136,7 @@ public struct CleanExecutor: CleanExecuting {
             guard let trash = item.trashURL else { continue }
             var r = item
             let dest = item.candidate.url
-            if !trash.pathComponents.contains(".Trash") {
+            if !Self.isInTrash(trash) {
                 r.status = .failed
                 r.message = "Not in Trash"
             } else if fm.fileExists(atPath: dest.path) || dest.isSymlink {
