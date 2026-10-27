@@ -3,12 +3,12 @@ import Foundation
 
 extension AppModel {
     var blockedSelected: [Candidate] {
-        selectedCandidates.filter { !(verdicts[$0.id]?.isAllowed ?? false) }
+        AppLogic.partition(selectedCandidates, verdicts: verdicts).blocked
     }
 
     var cleanableSelected: [Candidate] {
         // A candidate without a verdict is never cleanable.
-        selectedCandidates.filter { verdicts[$0.id]?.isAllowed ?? false }
+        AppLogic.partition(selectedCandidates, verdicts: verdicts).cleanable
     }
 
     /// Evaluates safety for the selection, then presents the confirmation sheet.
@@ -25,9 +25,22 @@ extension AppModel {
     }
 
     func runClean(dryRun: Bool) async {
+        // Re-evaluate right before acting: state may have changed since the sheet opened.
+        await evaluateVerdicts(for: selectedCandidates)
         let items = cleanableSelected
         guard !items.isEmpty else { return }
         cleanPhase = .running(CleanProgress(completed: 0, total: items.count, currentTitle: "", freedBytes: 0))
+
+        if settings.requireVaultBeforeClean, !dryRun {
+            cleanPhase = .running(CleanProgress(
+                completed: 0, total: items.count, currentTitle: "Exporting secrets to the vault…", freedBytes: 0))
+            if let failure = await exportSecretsBeforeClean(for: items) {
+                lastError = "Clean aborted: \(failure)"
+                cleanPhase = .confirming
+                return
+            }
+        }
+
         let report = await services.cleaner.clean(items, mode: cleanMode, dryRun: dryRun) { [weak self] progress in
             Task { @MainActor in
                 guard let self, case .running = self.cleanPhase else { return }
@@ -39,9 +52,39 @@ extension AppModel {
             let cleaned = Set(report.items.filter { $0.status == .cleaned }.map(\.candidate.id))
             selection.subtract(cleaned)
             removeCandidates(cleaned)
+            diskRefreshToken += 1
+            await persistScanCache()
             await loadJournal()
         }
         cleanPhase = .finished(report)
+    }
+
+    /// Collects and exports (folder format) the secrets of the projects being cleaned.
+    /// Returns an error description on failure, nil on success.
+    private func exportSecretsBeforeClean(for items: [Candidate]) async -> String? {
+        let itemIDs = Set(items.map(\.id))
+        let affected = projects.filter { project in project.candidates.contains { itemIDs.contains($0.id) } }
+            .map { $0.url.standardizedFileURL.resolvingSymlinksInPath() }
+        guard !affected.isEmpty else { return nil }
+        let options = VaultCollectOptions(
+            roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
+            extraPatterns: settings.vault.extraPatterns, alwaysCollect: settings.vault.alwaysCollect,
+            includeUncommittedWork: settings.vault.includeUncommittedWork, scanContents: settings.vault.scanContents)
+        do {
+            let found = try await collectSecrets(options)
+            let files = found.files.filter { file in
+                let source = file.sourceURL.standardizedFileURL.resolvingSymlinksInPath()
+                return affected.contains { source.isDescendant(of: $0) }
+            }
+            guard !files.isEmpty else { return nil }
+            let destination = (settings.vault.destination ?? AppPaths.defaultVaultDirectory)
+                .standardizedFileURL.resolvingSymlinksInPath()
+            _ = try await services.vaultExporter.export(VaultExportRequest(
+                files: files, destination: destination, format: .folder, keepVersions: settings.vault.keepVersions))
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     func dismissClean() {
@@ -75,6 +118,9 @@ extension AppModel {
 
     func putBack(_ report: CleanReport) async {
         let items = report.items.filter { $0.status == .cleaned && $0.trashURL != nil }
+        guard !puttingBack.contains(report.id) else { return }
+        puttingBack.insert(report.id)
+        defer { puttingBack.remove(report.id) }
         putBackState[report.id] = "Putting back…"
         let results = await services.cleaner.putBack(items)
         let failed = results.filter { $0.status == .failed }.count

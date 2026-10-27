@@ -13,6 +13,9 @@ struct ProjectContextMenu: View {
                 Button("Open in Terminal", systemImage: "terminal") {
                     Panels.openInTerminal(project?.url ?? url.deletingLastPathComponent())
                 }
+                Button("Open in Editor", systemImage: "chevron.left.forwardslash.chevron.right") {
+                    Editor.open(project?.url ?? url.deletingLastPathComponent())
+                }
                 Button("Copy Path", systemImage: "doc.on.doc") { Panels.copy(url.path) }
             }
             if let project {

@@ -38,7 +38,13 @@ struct VaultRestoreView: View {
     private func open() {
         guard let url = Panels.chooseVault() else { return }
         if url.pathExtension.lowercased() == "dmg" {
-            pendingEncrypted = url
+            // A saved password is unlocked with Touch ID; cancelling falls back to typing it.
+            let account = url.standardizedFileURL.resolvingSymlinksInPath().path
+            Task {
+                let saved = await Task.detached { try? VaultKeychain.load(account: account) }.value
+                if let saved, await model.openVault(url, password: saved) { return }
+                pendingEncrypted = url
+            }
         } else {
             Task { _ = await model.openVault(url, password: nil) }
         }

@@ -1,8 +1,28 @@
+import AppKit
 import SwiftUI
+
+/// Receives folders dropped on the Dock icon or opened with the app.
+final class CleanerAppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor static var onOpen: (([URL]) -> Void)?
+    private var pending: [URL] = []
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            if let handler = Self.onOpen { handler(urls) } else { pending += urls }
+        }
+    }
+
+    @MainActor func flushPending() {
+        guard !pending.isEmpty else { return }
+        Self.onOpen?(pending)
+        pending = []
+    }
+}
 
 @main
 struct CleanerApp: App {
-    @State private var model = AppModel()
+    @NSApplicationDelegateAdaptor(CleanerAppDelegate.self) private var delegate
+    @State private var model = AppModel(services: .live)
 
     var body: some Scene {
         WindowGroup {
@@ -10,10 +30,14 @@ struct CleanerApp: App {
                 if model.settings.hasCompletedOnboarding {
                     RootView()
                 } else {
-                    OnboardingView()
+                    OnboardingView(startStep: model.onboardingStartStep)
                 }
             }
             .environment(model)
+            .onAppear {
+                CleanerAppDelegate.onOpen = { [model] urls in model.addScanRoots(urls) }
+                delegate.flushPending()
+            }
         }
         .commands { AppCommands(model: model) }
 

@@ -4,9 +4,11 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
     @State private var disk = DiskInfo.current()
+    @State private var hasFullDiskAccess = OnboardingAccessStep.hasAccess()
 
     var body: some View {
         ScrollView {
+            if !hasFullDiskAccess { fullDiskAccessBanner }
             switch model.scanState {
             case .idle:
                 EmptyStateView("Ready to scan", symbolName: "sparkle.magnifyingglass",
@@ -34,7 +36,25 @@ struct DashboardView: View {
                 }
             }
         }
-        .onAppear { disk = DiskInfo.current() }
+        .onAppear { disk = DiskInfo.current(); hasFullDiskAccess = OnboardingAccessStep.hasAccess() }
+        .onChange(of: model.diskRefreshToken) { _, _ in disk = DiskInfo.current() }
+    }
+
+    private var fullDiskAccessBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.trianglebadge.exclamationmark").foregroundStyle(.orange)
+            Text("Cleaner doesn't have Full Disk Access, so some caches and folders may be missed.")
+                .font(.callout)
+            Spacer()
+            Button("Grant Access…") {
+                model.onboardingStartStep = 2
+                model.settings.hasCompletedOnboarding = false
+            }
+            .buttonStyle(.glass)
+        }
+        .padding(12)
+        .background(.orange.opacity(0.12), in: .rect(cornerRadius: 10))
+        .padding([.horizontal, .top], 20)
     }
 
     private func scanning(_ progress: ScanProgress) -> some View {

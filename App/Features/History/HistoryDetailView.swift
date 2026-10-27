@@ -21,7 +21,7 @@ struct HistoryDetailView: View {
                 if canPutBack {
                     Button("Put Back", systemImage: "arrow.uturn.backward") { Task { await model.putBack(report) } }
                         .buttonStyle(.glass)
-                        .disabled(model.putBackDone.contains(report.id) || model.putBackState[report.id] == "Putting back…")
+                        .disabled(model.putBackDone.contains(report.id) || model.puttingBack.contains(report.id))
                 }
             }
             if let state = model.putBackState[report.id] {
