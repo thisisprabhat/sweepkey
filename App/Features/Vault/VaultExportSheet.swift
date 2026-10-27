@@ -19,7 +19,7 @@ struct VaultExportSheet: View {
     }
 
     private var canExport: Bool {
-        guard destination != nil else { return false }
+        guard isValidDestination(destination) else { return false }
         return format != .encryptedImage || (password.count >= 8 && password == confirm)
     }
 
@@ -39,6 +39,9 @@ struct VaultExportSheet: View {
         }
         .padding(20)
         .frame(width: 520)
+        .onChange(of: format) { _, _ in
+            if !isValidDestination(destination) { destination = nil }
+        }
         .onAppear { format = model.settings.vault.defaultFormat; destination = model.settings.vault.destination }
     }
 
@@ -79,6 +82,15 @@ struct VaultExportSheet: View {
             .buttonStyle(.glassProminent)
             .keyboardShortcut(.defaultAction)
             .disabled(!canExport)
+        }
+    }
+
+    private func isValidDestination(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        switch format {
+        case .folder: return url.hasDirectoryPath || url.pathExtension.isEmpty
+        case .zip: return url.pathExtension.lowercased() == "zip"
+        case .encryptedImage: return url.pathExtension.lowercased() == "dmg"
         }
     }
 

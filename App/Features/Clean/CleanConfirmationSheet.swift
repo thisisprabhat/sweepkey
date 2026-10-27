@@ -71,7 +71,14 @@ struct CleanConfirmationSheet: View {
                 Text(candidate.title)
                 Text(candidate.url.abbreviatingHome).font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
-                if dimmed, let verdict = model.verdicts[candidate.id] { VerdictRow(verdict: verdict).font(.caption) }
+                if dimmed {
+                    if let verdict = model.verdicts[candidate.id] {
+                        VerdictRow(verdict: verdict).font(.caption)
+                    } else {
+                        Label("Not yet checked", systemImage: "questionmark.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
             Spacer()
             RiskBadge(risk: candidate.risk)

@@ -24,8 +24,19 @@ struct CleanerApp: App {
     }
 }
 
+/// True while a screen that supports cleaning (Projects or Caches) is showing.
+struct CleanScreenActiveKey: FocusedValueKey { typealias Value = Bool }
+
+extension FocusedValues {
+    var cleanScreenActive: Bool? {
+        get { self[CleanScreenActiveKey.self] }
+        set { self[CleanScreenActiveKey.self] = newValue }
+    }
+}
+
 struct AppCommands: Commands {
     let model: AppModel
+    @FocusedValue(\.cleanScreenActive) private var cleanScreenActive
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
@@ -33,8 +44,10 @@ struct AppCommands: Commands {
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.scanState.isScanning)
             Button("Clean Selection…") { model.requestClean() }
-                .keyboardShortcut(.delete, modifiers: .command)
-                .disabled(model.selection.isEmpty)
+                // ⌘⌥⌫ rather than ⌘⌫: plain ⌘⌫ is "delete to line start" in text fields
+                // and focus scoping cannot detect an active text field.
+                .keyboardShortcut(.delete, modifiers: [.command, .option])
+                .disabled(model.selection.isEmpty || cleanScreenActive != true)
         }
         CommandGroup(after: .toolbar) {
             Button("Toggle Inspector") { model.showInspector.toggle() }

@@ -60,6 +60,7 @@ final class AppModel {
     var reports: [CleanReport] = []
     var lifetimeFreedBytes: Int64 = 0
     var putBackState: [UUID: String] = [:]
+    var putBackDone: Set<UUID> = []
 
     // Vault
     var vaultOptions: VaultCollectOptions

@@ -2,10 +2,17 @@ import CleanerKit
 import Foundation
 
 extension AppModel {
-    /// Fire-and-forget scan, cancellable by starting another.
+    /// Fire-and-forget scan; stop it with `cancelScan()`.
     func scan() {
         guard !scanState.isScanning else { return }
         scanTask = Task { await runScan() }
+    }
+
+    /// Cancels a running scan and returns to idle (keeping any projects found so far).
+    func cancelScan() {
+        scanTask?.cancel()
+        scanTask = nil
+        if scanState.isScanning { scanState = .idle }
     }
 
     func scanIfNeeded() {
@@ -35,6 +42,7 @@ extension AppModel {
             scanError = error.localizedDescription
         }
         cacheGroups = await groups
+        if Task.isCancelled { return }
         scanState = .done(summary ?? ScanSummary(
             projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
             totalBytes: projects.reduce(0) { $0 + $1.reclaimableBytes }, startedAt: Date(), finishedAt: Date()))

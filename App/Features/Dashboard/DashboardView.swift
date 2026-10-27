@@ -24,10 +24,14 @@ struct DashboardView: View {
         .navigationTitle("Dashboard")
         .toolbar {
             ToolbarItem {
-                Button("Scan", systemImage: "magnifyingglass") { model.scan() }
-                    .buttonStyle(.glassProminent)
-                    .disabled(model.scanState.isScanning)
-                    .help("Scan for reclaimable space (⌘R)")
+                if model.scanState.isScanning {
+                    Button("Stop", systemImage: "stop.fill") { model.cancelScan() }
+                        .buttonStyle(.glass)
+                } else {
+                    Button("Scan", systemImage: "magnifyingglass") { model.scan() }
+                        .buttonStyle(.glassProminent)
+                        .help("Scan for reclaimable space (⌘R)")
+                }
             }
         }
         .onAppear { disk = DiskInfo.current() }

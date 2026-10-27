@@ -3,11 +3,12 @@ import Foundation
 
 extension AppModel {
     var blockedSelected: [Candidate] {
-        selectedCandidates.filter { !(verdicts[$0.id]?.isAllowed ?? true) }
+        selectedCandidates.filter { !(verdicts[$0.id]?.isAllowed ?? false) }
     }
 
     var cleanableSelected: [Candidate] {
-        selectedCandidates.filter { verdicts[$0.id]?.isAllowed ?? true }
+        // A candidate without a verdict is never cleanable.
+        selectedCandidates.filter { verdicts[$0.id]?.isAllowed ?? false }
     }
 
     /// Evaluates safety for the selection, then presents the confirmation sheet.
@@ -77,8 +78,10 @@ extension AppModel {
         putBackState[report.id] = "Putting back…"
         let results = await services.cleaner.putBack(items)
         let failed = results.filter { $0.status == .failed }.count
+        let restored = results.count - failed
         putBackState[report.id] = failed == 0
-            ? "Put back \(results.count) item(s)."
-            : "\(failed) item(s) could not be put back."
+            ? "Restored \(restored) item(s) from the Trash."
+            : "Restored \(restored) item(s); \(failed) could not be put back."
+        if failed == 0 { putBackDone.insert(report.id) }
     }
 }

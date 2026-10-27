@@ -51,6 +51,7 @@ struct RootView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 560)
+        .focusedSceneValue(\.cleanScreenActive, selection == .projects || selection == .caches)
         .sheet(isPresented: $model.isCleanSheetPresented) {
             CleanFlowSheet()
         }
