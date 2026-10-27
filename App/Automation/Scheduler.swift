@@ -56,7 +56,7 @@ final class Scheduler {
         switch job {
         case .scan:
             guard !model.settings.scanRoots.isEmpty else { return }
-            if model.scanState.isScanning { await model.scanTask?.value } else {
+            if model.scanState.isScanning { await model.waitForScan() } else {
                 model.scanGeneration += 1
                 await model.runScan(generation: model.scanGeneration)
             }
@@ -68,7 +68,7 @@ final class Scheduler {
         case .clean:
             guard !model.settings.scanRoots.isEmpty else { return }
             // Fresh results first: the cache may be old. Safe rules and stale projects only.
-            if model.scanState.isScanning { await model.scanTask?.value } else {
+            if model.scanState.isScanning { await model.waitForScan() } else {
                 model.scanGeneration += 1
                 await model.runScan(generation: model.scanGeneration)
             }

@@ -12,8 +12,6 @@ final class FSEventsWatcher: @unchecked Sendable {
 
     init(onChange: @escaping @Sendable ([String]) -> Void) { self.onChange = onChange }
 
-    deinit { stop() }
-
     var isRunning: Bool { stream != nil }
 
     func start(roots: [URL]) {
@@ -21,7 +19,9 @@ final class FSEventsWatcher: @unchecked Sendable {
         let paths = roots.map(\.path)
         guard !paths.isEmpty else { return }
         var context = FSEventStreamContext(
-            version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
+            version: 0, info: Unmanaged.passRetained(self).toOpaque(), retain: nil,
+            release: { info in if let info { Unmanaged<FSEventsWatcher>.fromOpaque(info).release() } },
+            copyDescription: nil)
         let callback: FSEventStreamCallback = { _, info, count, eventPaths, _, _ in
             guard let info else { return }
             let watcher = Unmanaged<FSEventsWatcher>.fromOpaque(info).takeUnretainedValue()
@@ -32,7 +32,10 @@ final class FSEventsWatcher: @unchecked Sendable {
             | kFSEventStreamCreateFlagNoDefer)
         guard let created = FSEventStreamCreate(
             nil, callback, &context, paths as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            Self.latency, flags) else { return }
+            Self.latency, flags) else {
+            Unmanaged<FSEventsWatcher>.fromOpaque(context.info!).release()
+            return
+        }
         FSEventStreamSetDispatchQueue(created, queue)
         FSEventStreamStart(created)
         stream = created
@@ -40,31 +43,13 @@ final class FSEventsWatcher: @unchecked Sendable {
     }
 
     func stop() {
+        // The stream's context retains this watcher until the stream is released, so an in-flight
+        // callback can never see a deallocated object. Callers must call `stop()` to let go.
         guard let stream else { return }
+        self.stream = nil
         FSEventStreamStop(stream)
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)
-        self.stream = nil
     }
 }
 
-/// Maps raw FSEvents paths to the directories worth rescanning.
-enum FSEventsPlanner {
-    /// Paths inside these are churn from builds and tooling, not new or changed projects.
-    static func isNoise(_ path: String, artifactPaths: [String]) -> Bool {
-        if path.contains("/.git/") || path.hasSuffix("/.git") || path.hasSuffix(".DS_Store") { return true }
-        return artifactPaths.contains { path == $0 || path.hasPrefix($0 + "/") }
-    }
-
-    /// The directory to rescan for a changed path: the containing known project, else the first
-    /// directory below the scan root (a new project may have appeared there).
-    static func affectedRoot(for path: String, projectPaths: [String], scanRoots: [String]) -> String? {
-        if let project = projectPaths.filter({ path == $0 || path.hasPrefix($0 + "/") }).max(by: { $0.count < $1.count }) {
-            return project
-        }
-        guard let root = scanRoots.filter({ path.hasPrefix($0 + "/") }).max(by: { $0.count < $1.count }) else { return nil }
-        let rest = path.dropFirst(root.count + 1)
-        guard let first = rest.split(separator: "/").first else { return nil }
-        return root + "/" + first
-    }
-}

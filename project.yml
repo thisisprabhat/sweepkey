@@ -43,6 +43,8 @@ targets:
     info:
       path: Config/Cleaner-Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleURLTypes:
           - CFBundleURLName: com.prabhatkumar.Cleaner
             CFBundleURLSchemes: [cleaner]
@@ -75,6 +77,8 @@ targets:
       path: Config/CleanerWidgets-Info.plist
       properties:
         CFBundleDisplayName: Cleaner Widgets
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

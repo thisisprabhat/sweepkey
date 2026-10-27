@@ -11,7 +11,7 @@ struct ScanProjectsIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
         let model = AppModel.shared
-        if model.scanState.isScanning { await model.scanTask?.value } else {
+        if model.scanState.isScanning { await model.waitForScan() } else {
             model.scanGeneration += 1
             await model.runScan(generation: model.scanGeneration)
         }
@@ -32,14 +32,16 @@ struct CleanStaleArtifactsIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
         let model = AppModel.shared
         await model.ensureScanned()
+        let items = model.safeCleanCandidates
         if !dryRun {
-            let items = model.safeCleanCandidates
             try await requestConfirmation(
                 actionName: .custom(acceptLabel: "Clean", acceptAlternatives: [], denyLabel: "Cancel", denyAlternatives: [], destructive: true),
                 dialog: IntentDialog(stringLiteral:
                     "Clean \(items.count) safe item(s), \(sizeText(items.reduce(0) { $0 + $1.sizeBytes }))?"))
         }
-        let outcome = await model.cleanSafeItems(dryRun: dryRun)
+        // Exactly the items that were confirmed, not a recomputed list.
+        let outcome = await model.cleanEligible(items, dryRun: dryRun)
+        AutomationState.shared.lastActionMessage = outcome.summary
         return .result(value: outcome.summary, dialog: IntentDialog(stringLiteral: outcome.summary))
     }
 }

@@ -2,19 +2,6 @@ import AppKit
 import CleanerKit
 import Foundation
 
-/// Decides whether a low-space alert is due. Pure so it can be reasoned about on its own.
-enum LowSpacePolicy {
-    static let minimumInterval: TimeInterval = 6 * 3600
-
-    static func shouldAlert(
-        freeBytes: Int64, thresholdGB: Int, lastAlert: Date?, now: Date, enabled: Bool
-    ) -> Bool {
-        guard enabled, freeBytes < Int64(thresholdGB) * 1_000_000_000 else { return false }
-        if let lastAlert, now.timeIntervalSince(lastAlert) < minimumInterval { return false }
-        return true
-    }
-}
-
 /// Checks free space every 15 minutes and on wake; alerts at most once every 6 hours.
 @MainActor
 final class LowSpaceMonitor {

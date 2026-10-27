@@ -17,6 +17,7 @@ final class AutomationController {
 
     private var pendingRoots: Set<String> = []
     private var rescanTask: Task<Void, Never>?
+    private var isRescanning = false
     private var lastRescan = Date.distantPast
     private static let rescanCooldown: TimeInterval = 60
 
@@ -64,9 +65,13 @@ final class AutomationController {
     }
 
     private func reconcileLoginItem() {
-        guard model.settings.launchAtLogin != LoginItem.isEnabled else { return }
-        do { try LoginItem.set(enabled: model.settings.launchAtLogin) } catch {
-            AutomationLog.info("login item sync failed: \(error.localizedDescription)")
+        // Never register here: only an explicit settings change does. If the user turned the item
+        // off in System Settings, reflect that; leave a pending approval alone.
+        if LoginItem.needsApproval { return }
+        let actual = LoginItem.isEnabled
+        if model.settings.launchAtLogin != actual {
+            AutomationLog.info("login item state is \(actual); updating the setting to match")
+            model.settings.launchAtLogin = actual
         }
     }
 
@@ -135,17 +140,37 @@ final class AutomationController {
         AutomationState.shared.resultsMayBeOutdated = true
         guard model.settings.schedule.autoScanEnabled else { return }
         pendingRoots.formUnion(affected)
+        scheduleRescan()
+    }
+
+    /// Debounces rescans. Only the waiting sleep is ever cancelled; a rescan in flight finishes,
+    /// and changes arriving meanwhile are queued for the next pass.
+    private func scheduleRescan() {
+        guard !isRescanning else { return }
         rescanTask?.cancel()
         let wait = max(FSEventsWatcher.latency, Self.rescanCooldown - Date().timeIntervalSince(lastRescan))
         rescanTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled else { return }
-            let roots = pendingRoots.map { URL(fileURLWithPath: $0) }
-            pendingRoots = []
-            lastRescan = Date()
-            AutomationLog.info("fsevents rescan of \(roots.count) root(s)")
-            await model.rescanMerging(roots)
+            await performRescan()
+        }
+    }
+
+    private func performRescan() async {
+        isRescanning = true
+        let roots = pendingRoots
+        pendingRoots = []
+        lastRescan = Date()
+        AutomationLog.info("fsevents rescan of \(roots.count) root(s)")
+        let merged = await model.rescanMerging(roots.map { URL(fileURLWithPath: $0) })
+        if !merged {
+            // A full scan was running, or the scan failed: keep the roots and the stale flag.
+            pendingRoots.formUnion(roots)
+            AutomationState.shared.resultsMayBeOutdated = true
+        } else if pendingRoots.isEmpty {
             AutomationState.shared.resultsMayBeOutdated = false
         }
+        isRescanning = false
+        if !pendingRoots.isEmpty { scheduleRescan() }
     }
 }

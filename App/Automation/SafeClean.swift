@@ -1,27 +1,6 @@
 import CleanerKit
 import Foundation
 
-/// Which candidates automation may clean: only `.safe` artifacts of stale projects, plus `.safe` caches.
-enum SafeCleanSelection {
-    static func candidates(projects: [Project], cacheGroups: [CacheGroup]) -> [Candidate] {
-        let artifacts = projects.filter(\.isStale).flatMap(\.candidates)
-        let caches = cacheGroups.flatMap(\.candidates)
-        return (artifacts + caches).filter { $0.risk == .safe }
-    }
-
-    /// Largest first until at least `bytes` are covered (or everything is taken).
-    static func largestFirst(upTo bytes: Int64, from candidates: [Candidate]) -> [Candidate] {
-        var total: Int64 = 0
-        var picked: [Candidate] = []
-        for candidate in candidates.sorted(by: { $0.sizeBytes > $1.sizeBytes }) {
-            guard total < bytes else { break }
-            picked.append(candidate)
-            total += candidate.sizeBytes
-        }
-        return picked
-    }
-}
-
 struct SafeCleanOutcome {
     var report: CleanReport?
     /// Candidates the safety guard blocked (or returned no verdict for).
@@ -45,9 +24,14 @@ extension AppModel {
         SafeCleanSelection.candidates(projects: projects, cacheGroups: cacheGroups)
     }
 
+    /// Waits for any in-flight scan, including ones started outside `scanTask` (scheduler, intents).
+    func waitForScan() async {
+        while scanState.isScanning { try? await Task.sleep(for: .milliseconds(200)) }
+    }
+
     /// Loads the cached scan, or scans, when there are no results yet. Waits for a running scan.
     func ensureScanned() async {
-        if scanState.isScanning { await scanTask?.value; return }
+        await waitForScan()
         if projects.isEmpty && cacheGroups.isEmpty {
             await loadCachedScan()
             if projects.isEmpty && cacheGroups.isEmpty && !settings.scanRoots.isEmpty {
@@ -113,11 +97,7 @@ extension AppModel {
 
     /// Snapshots all current secrets to the vault (folder format only).
     func snapshotVault() async throws -> VaultExportResult? {
-        let options = VaultCollectOptions(
-            roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
-            extraPatterns: settings.vault.extraPatterns, alwaysCollect: settings.vault.alwaysCollect,
-            includeUncommittedWork: settings.vault.includeUncommittedWork, scanContents: settings.vault.scanContents)
-        let found = try await collectSecrets(options)
+        let found = try await collectSecrets(currentVaultCollectOptions)
         guard !found.files.isEmpty else { return nil }
         let destination = (settings.vault.destination ?? AppPaths.defaultVaultDirectory)
             .standardizedFileURL.resolvingSymlinksInPath()
@@ -152,11 +132,14 @@ extension AppModel {
 
     /// Background rescan of only the given directories, merged into the current results. Leaves
     /// `scanState` alone so the UI does not flicker, and skips when a full scan is running.
-    func rescanMerging(_ affected: [URL]) async {
-        guard !scanState.isScanning, !affected.isEmpty else { return }
+    /// Returns true only when the results were actually merged; a cancelled or failed scan merges
+    /// nothing (so no project is dropped) and the caller should retry later.
+    @discardableResult
+    func rescanMerging(_ affected: [URL]) async -> Bool {
+        guard !scanState.isScanning, !affected.isEmpty else { return false }
         let roots = AppLogic.resolve(affected).filter { FileManager.default.fileExists(atPath: $0.path) }
         let found = await collectProjects(in: roots, progress: nil)
-        guard !scanState.isScanning else { return }
+        guard !Task.isCancelled, found.failure == nil, !scanState.isScanning else { return false }
         let all = AppLogic.resolve(affected)
         projects.removeAll { project in
             all.contains { project.url == $0 || project.url.isDescendant(of: $0) }
@@ -165,6 +148,7 @@ extension AppModel {
         projects.sort { $0.reclaimableBytes > $1.reclaimableBytes }
         selection = selection.filter { id in allCandidates.contains { $0.id == id } }
         await persistScanCache()
+        return true
     }
 
     private func collectProjects(

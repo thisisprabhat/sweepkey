@@ -25,6 +25,14 @@ extension AppModel {
     }
 
     func runClean(dryRun: Bool) async {
+        // Two-way guard with automation cleans (menu bar, intents, scheduler).
+        let automation = AutomationState.shared
+        guard !automation.isCleaning else {
+            lastError = "Another clean is already running."
+            return
+        }
+        automation.isCleaning = true
+        defer { automation.isCleaning = false }
         // Re-evaluate right before acting: state may have changed since the sheet opened.
         await evaluateVerdicts(for: selectedCandidates)
         let items = cleanableSelected
@@ -60,6 +68,14 @@ extension AppModel {
         cleanPhase = .finished(report)
     }
 
+    /// Vault collection options from the current settings, with resolved roots.
+    var currentVaultCollectOptions: VaultCollectOptions {
+        VaultCollectOptions(
+            roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
+            extraPatterns: settings.vault.extraPatterns, alwaysCollect: settings.vault.alwaysCollect,
+            includeUncommittedWork: settings.vault.includeUncommittedWork, scanContents: settings.vault.scanContents)
+    }
+
     /// Collects and exports (folder format) the secrets of the projects being cleaned.
     /// Returns an error description on failure, nil on success.
     func exportSecretsBeforeClean(for items: [Candidate]) async -> String? {
@@ -67,10 +83,7 @@ extension AppModel {
         let affected = projects.filter { project in project.candidates.contains { itemIDs.contains($0.id) } }
             .map { $0.url.standardizedFileURL.resolvingSymlinksInPath() }
         guard !affected.isEmpty else { return nil }
-        let options = VaultCollectOptions(
-            roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
-            extraPatterns: settings.vault.extraPatterns, alwaysCollect: settings.vault.alwaysCollect,
-            includeUncommittedWork: settings.vault.includeUncommittedWork, scanContents: settings.vault.scanContents)
+        let options = currentVaultCollectOptions
         do {
             let found = try await collectSecrets(options)
             vaultBeforeCleanWarnings = found.warnings
