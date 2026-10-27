@@ -75,6 +75,33 @@ private final class DataBox: @unchecked Sendable {
     func get() -> Data { lock.lock(); defer { lock.unlock() }; return data }
 }
 
+private final class ProcessHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var cancelled = false
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+
+    /// Registers the running process; returns false if cancellation already happened.
+    func attach(_ p: Process) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        process = p
+        return !cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let p = process
+        lock.unlock()
+        guard let p, p.isRunning else { return }
+        p.terminate()
+        let pid = p.processIdentifier
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+            if p.isRunning { kill(pid, SIGKILL) }
+        }
+    }
+}
+
 public struct ProcessShellRunner: ShellRunning {
     public init() {}
 
@@ -89,7 +116,9 @@ public struct ProcessShellRunner: ShellRunning {
             + Double(timeout.components.attoseconds) / 1e18
         let dirs = searchDirectories().joined(separator: ":")
 
-        return try await withCheckedThrowingContinuation { continuation in
+        let handle = ProcessHandle()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: path)
@@ -113,6 +142,9 @@ public struct ProcessShellRunner: ShellRunning {
                     continuation.resume(throwing: ShellError.launchFailed(error.localizedDescription))
                     return
                 }
+                if !handle.attach(process) { handle.cancel() }
+                // Writing to a child that already exited must not raise SIGPIPE in the host.
+                _ = fcntl(inPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
 
                 let outBox = DataBox(), errBox = DataBox()
                 let group = DispatchGroup()
@@ -144,6 +176,10 @@ public struct ProcessShellRunner: ShellRunning {
                 }
                 _ = group.wait(timeout: .now() + 5)
 
+                if handle.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 if timedOut {
                     continuation.resume(throwing: ShellError.timedOut)
                     return
@@ -154,6 +190,9 @@ public struct ProcessShellRunner: ShellRunning {
                     stderr: String(decoding: errBox.get(), as: UTF8.self)
                 ))
             }
+        }
+        } onCancel: {
+            handle.cancel()
         }
     }
 }

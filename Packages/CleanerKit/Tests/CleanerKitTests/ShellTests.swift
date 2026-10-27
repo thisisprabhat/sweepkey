@@ -31,6 +31,19 @@ import Foundation
         }
     }
 
+    @Test func cancellationTerminatesChild() async throws {
+        let shell = self.shell
+        let start = ContinuousClock.now
+        let task = Task {
+            try await shell.run("sleep", arguments: ["30"], currentDirectory: nil,
+                                input: nil, timeout: .seconds(60))
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(ContinuousClock.now - start < .seconds(10))
+    }
+
     @Test func largeOutputDoesNotDeadlock() async throws {
         let r = try await shell.run("sh", ["-c", "head -c 3000000 /dev/zero | tr '\\0' 'a'; head -c 2000000 /dev/zero | tr '\\0' 'b' >&2"])
         #expect(r.succeeded)

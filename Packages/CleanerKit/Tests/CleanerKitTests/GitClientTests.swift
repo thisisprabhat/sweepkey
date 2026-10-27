@@ -2,7 +2,25 @@ import Testing
 import Foundation
 @testable import CleanerKit
 
-@Suite struct GitClientTests {
+private let gitAvailable: Bool = {
+    guard let r = Process.runSync("/usr/bin/xcode-select", ["-p"]) else { return false }
+    return r == 0
+}()
+
+private extension Process {
+    static func runSync(_ path: String, _ args: [String]) -> Int32? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: path)
+        p.arguments = args
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return nil }
+        p.waitUntilExit()
+        return p.terminationStatus
+    }
+}
+
+@Suite(.enabled(if: gitAvailable)) struct GitClientTests {
     let git = GitClient()
     let shell = ProcessShellRunner()
 
@@ -24,7 +42,6 @@ import Foundation
     }
 
     @Test func trackedVsUntracked() async throws {
-        guard await git.isAvailable() else { return }
         try await withTempDir { dir in
             try await makeRepo(dir)
             try "x".write(to: dir.appending(path: "new.txt"), atomically: true, encoding: .utf8)
@@ -39,14 +56,12 @@ import Foundation
     }
 
     @Test func notARepository() async throws {
-        guard await git.isAvailable() else { return }
         try await withTempDir { dir in
             #expect(await git.repositoryRoot(containing: dir) == nil)
         }
     }
 
     @Test func ignoredPathsListed() async throws {
-        guard await git.isAvailable() else { return }
         try await withTempDir { dir in
             try await makeRepo(dir)
             try "SECRET=1".write(to: dir.appending(path: ".env"), atomically: true, encoding: .utf8)
@@ -58,7 +73,6 @@ import Foundation
     }
 
     @Test func infoHasBranchAndDate() async throws {
-        guard await git.isAvailable() else { return }
         try await withTempDir { dir in
             try await makeRepo(dir)
             let info = await git.info(forRepository: dir)
@@ -72,11 +86,31 @@ import Foundation
     }
 
     @Test func dirtyDetected() async throws {
-        guard await git.isAvailable() else { return }
         try await withTempDir { dir in
             try await makeRepo(dir)
             try "changed".write(to: dir.appending(path: "tracked.txt"), atomically: true, encoding: .utf8)
             #expect(await git.info(forRepository: dir)?.isDirty == true)
+        }
+    }
+
+    @Test func ignoredPathsThrowsOutsideRepo() async throws {
+        try await withTempDir { dir in
+            await #expect(throws: GitError.self) { _ = try await git.ignoredPaths(repositoryRoot: dir) }
+            await #expect(throws: GitError.self) { _ = try await git.untrackedPaths(repositoryRoot: dir) }
+        }
+    }
+
+    @Test func globCharactersInNamesAreLiteral() async throws {
+        try await withTempDir { dir in
+            try await makeRepo(dir)
+            let sub = dir.appending(path: "a[1]")
+            try write(10, to: sub.appending(path: "f.txt"))
+            try await sh(["add", "."], in: dir)
+            try await sh(["commit", "-q", "-m", "glob"], in: dir)
+            try FileManager.default.createDirectory(at: dir.appending(path: "a1"), withIntermediateDirectories: true)
+            try write(10, to: dir.appending(path: "a1/g.txt"))
+            #expect(await git.hasTrackedFiles(at: sub, repositoryRoot: dir))
+            #expect(!(await git.hasTrackedFiles(at: dir.appending(path: "a1"), repositoryRoot: dir)))
         }
     }
 }

@@ -1,5 +1,9 @@
 import Foundation
 
+public enum GitError: Error, Sendable, Equatable {
+    case commandFailed(String)
+}
+
 public struct GitClient: Sendable {
     private let shell: ShellRunning
     private let gitPath: String
@@ -26,6 +30,7 @@ public struct GitClient: Sendable {
         return path.isEmpty ? nil : URL(fileURLWithPath: path, isDirectory: true)
     }
 
+    /// Note: `isDirty` is true when there are any changes, including untracked files.
     public func info(forRepository root: URL) async -> GitInfo? {
         guard let inside = try? await git(["rev-parse", "--is-inside-work-tree"], in: root),
               inside.succeeded else { return nil }
@@ -69,7 +74,7 @@ public struct GitClient: Sendable {
         } else {
             return false
         }
-        guard let r = try? await git(["ls-files", "-z", "--", rel], in: repositoryRoot), r.succeeded else {
+        guard let r = try? await git(["ls-files", "-z", "--", ":(literal)\(rel)"], in: repositoryRoot), r.succeeded else {
             return false
         }
         return !r.stdout.isEmpty
@@ -79,12 +84,20 @@ public struct GitClient: Sendable {
         let r = try await git(
             ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"],
             in: repositoryRoot)
+        try Self.requireSuccess(r)
         return Self.splitNUL(r.stdout)
     }
 
     public func untrackedPaths(repositoryRoot: URL) async throws -> [String] {
         let r = try await git(["ls-files", "-z", "--others", "--exclude-standard"], in: repositoryRoot)
+        try Self.requireSuccess(r)
         return Self.splitNUL(r.stdout)
+    }
+
+    private static func requireSuccess(_ r: ShellResult) throws {
+        guard r.succeeded else {
+            throw GitError.commandFailed(r.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
     }
 
     private static func splitNUL(_ s: String) -> [String] {

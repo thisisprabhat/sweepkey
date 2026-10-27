@@ -14,7 +14,8 @@ public extension URL {
     }
 
     /// True if this URL is strictly inside `ancestor`, comparing standardized path components
-    /// (resolves `..` and `.`; not a string-prefix check).
+    /// (resolves `..` and `.`; not a string-prefix check). Strict: a URL is not its own
+    /// descendant. Does not resolve symlinks.
     func isDescendant(of ancestor: URL) -> Bool {
         let a = ancestor.standardizedFileURL.pathComponents
         let b = standardizedFileURL.pathComponents
