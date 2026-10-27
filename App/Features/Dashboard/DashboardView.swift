@@ -73,6 +73,7 @@ struct DashboardView: View {
             }
             SectionHeaderView("Top offenders", symbolName: "chart.bar")
             TopOffendersList(candidates: model.topOffenders)
+            InsightsSection()
         }
         .padding(20)
     }
