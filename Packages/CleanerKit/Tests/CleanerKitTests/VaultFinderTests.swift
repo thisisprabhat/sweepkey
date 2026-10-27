@@ -127,6 +127,12 @@ import Testing
             let hash = VaultLayout.shortHash(second.standardizedFileURL.resolvingSymlinksInPath().path)
             #expect(Set(found.map(\.vaultPath)) == ["Projects/app/.env", "Projects-\(hash)/app/.env"])
             #expect(hash.count == 8)
+            // Both files survive the export; the manifest is keyed by the distinct vault paths.
+            let vault = dir.appendingPathComponent("vault")
+            let result = try await VaultExporter().export(.init(files: found, destination: vault, format: .folder))
+            #expect(result.copiedCount == 2 && result.manifest.entries.count == 2)
+            #expect(try String(contentsOf: vault.appendingPathComponent("Projects/app/.env"), encoding: .utf8) == "A=1")
+            #expect(try String(contentsOf: vault.appendingPathComponent("Projects-\(hash)/app/.env"), encoding: .utf8) == "B=1")
             // A single root keeps the plain name, so existing vaults are unchanged.
             let single = try await SecretFinder(git: GitClient(shell: NoGitShell()))
                 .findSecrets(VaultCollectOptions(roots: [second]))
