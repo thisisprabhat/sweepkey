@@ -41,6 +41,9 @@ public struct RuleSet: Sendable {
                 problems.append("Target must not contain '..'.")
             }
             if target.split(separator: "/").allSatisfy({ $0 == "." }) { problems.append("Target must name a folder inside the project.") }
+            if target.split(separator: "/").contains(where: { $0.lowercased() == ".git" }) {
+                problems.append("Target must not be or contain .git.")
+            }
         }
         let markers = rule.markers.map { $0.trimmingCharacters(in: .whitespaces) }
         if markers.isEmpty || markers.contains(where: \.isEmpty) {

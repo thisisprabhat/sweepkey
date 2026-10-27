@@ -8,6 +8,8 @@ public struct SafetyGuard: SafetyEvaluating {
     private let activeDirectories: @Sendable () async -> [URL]
 
     private static let systemPrefixes = ["/System", "/usr", "/bin", "/sbin", "/Library", "/Applications"]
+    /// Candidates evaluated at once; each may run two git processes.
+    static let maxConcurrency = 8
 
     public init(
         git: GitClient = .init(),
@@ -24,10 +26,27 @@ public struct SafetyGuard: SafetyEvaluating {
     }
 
     public func evaluate(_ candidates: [Candidate], scanRoots: [URL]) async -> [Candidate.ID: SafetyVerdict] {
+        guard !candidates.isEmpty else { return [:] }
         let active = await activeDirectories().map(Self.resolved)
+        // Asked once per evaluation, so a missing Command Line Tools install neither pops the
+        // installer per candidate nor slows every verdict.
+        let gitAvailable = await git.isAvailable()
         var result: [Candidate.ID: SafetyVerdict] = [:]
-        for c in candidates {
-            result[c.id] = await verdict(for: c, scanRoots: scanRoots, active: active)
+        await withTaskGroup(of: (Candidate.ID, SafetyVerdict).self) { group in
+            var next = 0
+            func addNext() {
+                guard next < candidates.count else { return }
+                let c = candidates[next]
+                next += 1
+                group.addTask {
+                    (c.id, await verdict(for: c, scanRoots: scanRoots, active: active, gitAvailable: gitAvailable))
+                }
+            }
+            for _ in 0..<Self.maxConcurrency { addNext() }
+            for await (id, verdict) in group {
+                result[id] = verdict
+                addNext()
+            }
         }
         return result
     }
@@ -39,7 +58,27 @@ public struct SafetyGuard: SafetyEvaluating {
         return false
     }
 
-    private func verdict(for c: Candidate, scanRoots: [URL], active: [URL]) async -> SafetyVerdict {
+    /// True when `url` or one of its ancestors holds a `.git` entry (a directory, or the file a
+    /// worktree or submodule uses).
+    static func hasGitEntry(atOrAbove url: URL) -> Bool {
+        let comps = url.standardizedFileURL.pathComponents
+        for count in stride(from: comps.count, through: 1, by: -1) {
+            let dir = NSString.path(withComponents: Array(comps.prefix(count)))
+            let git = (dir as NSString).appendingPathComponent(".git")
+            if (try? FileManager.default.attributesOfItem(atPath: git)) != nil { return true }
+        }
+        return false
+    }
+
+    private static func components(_ url: URL) -> [String] { url.pathComponents.map { $0.lowercased() } }
+
+    /// Equal to, or inside, `ancestor` (resolved, case-insensitive path components).
+    private static func isAtOrInside(_ url: URL, _ ancestor: URL) -> Bool {
+        let a = components(ancestor), b = components(url)
+        return b.count >= a.count && Array(b.prefix(a.count)) == a
+    }
+
+    private func verdict(for c: Candidate, scanRoots: [URL], active: [URL], gitAvailable: Bool) async -> SafetyVerdict {
         let url = Self.resolved(c.url)
         let path = url.path
         let homeURL = Self.resolved(home)
@@ -61,6 +100,11 @@ public struct SafetyGuard: SafetyEvaluating {
             return .blocked("System path")
         }
 
+        // 1b. Git metadata is never a cleaning target.
+        if Self.components(url).contains(".git") || Self.components(c.url.standardizedFileURL).contains(".git") {
+            return .blocked("Git metadata (.git)")
+        }
+
         // 2. Symlinks.
         if c.url.isSymlink { return .blocked("Symlink") }
 
@@ -76,19 +120,28 @@ public struct SafetyGuard: SafetyEvaluating {
             }
         }
 
-        // 5. Pinned.
+        // 5. Pinned: the project itself or anything nested in it (a pinned monorepo protects its packages).
+        let pins = pinnedProjects.map(Self.resolved)
         if let root = c.projectRoot {
             let r = Self.resolved(root)
-            if pinnedProjects.contains(where: { Self.resolved($0) == r }) { return .blocked("Pinned project") }
+            if pins.contains(where: { Self.isAtOrInside(r, $0) }) { return .blocked("Pinned project") }
+        }
+        if c.kind == .projectArtifact, pins.contains(where: { Self.isAtOrInside(url, $0) }) {
+            return .blocked("Pinned project")
         }
 
-        // 6. Git-tracked files (project artifacts only).
-        if c.kind == .projectArtifact, !command,
-           let repo = await git.repositoryRoot(containing: c.url) {
-            switch await tracked.status(of: c.url, repositoryRoot: repo) {
-            case .tracked: return .blocked("Contains files tracked by git")
-            case .error: return .blocked("Could not verify git status")
-            case .untracked: break
+        // 6. Git-tracked files (project artifacts only). Fails closed: inside a repository (a
+        // `.git` entry above the candidate), git must answer, or the candidate is blocked.
+        if c.kind == .projectArtifact, !command {
+            let inRepository = Self.hasGitEntry(atOrAbove: url)
+            if gitAvailable, let repo = await git.repositoryRoot(containing: c.url) {
+                switch await tracked.status(of: c.url, repositoryRoot: repo) {
+                case .tracked: return .blocked("Contains files tracked by git")
+                case .error: return .blocked("Could not verify git status")
+                case .untracked: break
+                }
+            } else if inRepository {
+                return .blocked("Could not verify git status")
             }
         }
 
