@@ -1,7 +1,7 @@
 import Foundation
 @testable import CleanerKit
 
-let gitAvailable: Bool = {
+let vaultGitAvailable: Bool = {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
     p.arguments = ["-p"]
@@ -15,7 +15,7 @@ let gitAvailable: Bool = {
 let hdiutilAvailable = FileManager.default.isExecutableFile(atPath: "/usr/bin/hdiutil")
 
 @discardableResult
-func runGit(_ args: [String], in dir: URL) throws -> String {
+func vaultGit(_ args: [String], in dir: URL) throws -> String {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
     p.arguments = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"] + args
@@ -40,14 +40,14 @@ func makeFixtureRepo(in dir: URL) throws -> (root: URL, app: URL) {
     let root = dir.appendingPathComponent("Root", isDirectory: true)
     let app = root.appendingPathComponent("app", isDirectory: true)
     try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
-    try runGit(["init", "-q"], in: app)
+    try vaultGit(["init", "-q"], in: app)
     try writeText(".env\n*.jks\nnode_modules/\n", to: app.appendingPathComponent(".gitignore"))
     try writeText("SECRET=1\n", to: app.appendingPathComponent(".env"))
     try writeText("KEYSTORE", to: app.appendingPathComponent("android/app/upload.jks"))
     try writeText("X=1\n", to: app.appendingPathComponent("node_modules/x/.env"))
     try writeText("name: app\n", to: app.appendingPathComponent("pubspec.yaml"))
-    try runGit(["add", ".gitignore", "pubspec.yaml"], in: app)
-    try runGit(["commit", "-q", "-m", "init"], in: app)
+    try vaultGit(["add", ".gitignore", "pubspec.yaml"], in: app)
+    try vaultGit(["commit", "-q", "-m", "init"], in: app)
     return (root, app)
 }
 

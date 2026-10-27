@@ -225,24 +225,24 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
         #expect(VaultRestorer.normalizeRemote("ssh://git@host:2222/a/b") == "https://host:2222/a/b")
     }
 
-    @Test(.enabled(if: gitAvailable), arguments: [false, true])
+    @Test(.enabled(if: vaultGitAvailable), arguments: [false, true])
     func restoreByGitRemoteIntoFreshClone(fileRemote: Bool) async throws {
         try await withTempDir { dir in
             let (root, app) = try makeFixtureRepo(in: dir)
             let origin = fileRemote ? "file://" + app.path : "https://github.com/acme/app.git"
-            try runGit(["remote", "add", "origin", origin], in: app)
+            try vaultGit(["remote", "add", "origin", origin], in: app)
             let found = try await SecretFinder().findSecrets(VaultCollectOptions(roots: [root]))
             let vault = dir.appendingPathComponent("vault")
             _ = try await VaultExporter().export(.init(files: found, destination: vault, format: .folder))
 
             let clones = dir.appendingPathComponent("clones", isDirectory: true)
             try FileManager.default.createDirectory(at: clones, withIntermediateDirectories: true)
-            try runGit(["clone", "-q", app.path, "fresh"], in: clones)
+            try vaultGit(["clone", "-q", app.path, "fresh"], in: clones)
             let fresh = clones.appendingPathComponent("fresh")
             if fileRemote {
-                try runGit(["remote", "set-url", "origin", origin], in: fresh)
+                try vaultGit(["remote", "set-url", "origin", origin], in: fresh)
             } else {
-                try runGit(["remote", "set-url", "origin", "git@github.com:acme/app.git"], in: fresh)
+                try vaultGit(["remote", "set-url", "origin", "git@github.com:acme/app.git"], in: fresh)
             }
             #expect(!FileManager.default.fileExists(atPath: fresh.appendingPathComponent(".env").path))
 

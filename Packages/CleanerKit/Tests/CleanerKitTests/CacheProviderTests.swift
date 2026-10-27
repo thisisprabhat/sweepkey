@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CleanerKit
 
-final class FakeShell: ShellRunning, @unchecked Sendable {
+final class CacheFakeShell: ShellRunning, @unchecked Sendable {
     private let lock = NSLock()
     private var _calls: [String] = []
     private let responses: [String: String]
@@ -18,7 +18,7 @@ final class FakeShell: ShellRunning, @unchecked Sendable {
     }
 }
 
-private func context(_ home: URL, shell: FakeShell = FakeShell(), tools: Set<String> = []) -> CacheContext {
+private func context(_ home: URL, shell: CacheFakeShell = CacheFakeShell(), tools: Set<String> = []) -> CacheContext {
     CacheContext(
         home: home, shell: shell, sizer: SizeCalculator(),
         fileExists: { FileManager.default.fileExists(atPath: $0.path) },
@@ -69,14 +69,14 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
     @Test func unavailableSimulatorsOnlyWhenListed() async throws {
         try await withTempDir { home in
             let key = "xcrun simctl list devices unavailable -j"
-            let withEntries = FakeShell([key: #"{"devices":{"rt":[{"udid":"1"}]}}"#])
+            let withEntries = CacheFakeShell([key: #"{"devices":{"rt":[{"udid":"1"}]}}"#])
             let g1 = await XcodeProvider().detect(context(home, shell: withEntries, tools: ["xcrun"]))
             let sims1 = try #require(g1.first { $0.id == "xcode.simulators" })
             let c = try #require(sims1.candidates.first { $0.ruleID == "xcode.unavailableSimulators" })
             #expect(c.action == .command(executable: "xcrun", arguments: ["simctl", "delete", "unavailable"]))
             #expect(c.sizeBytes == 0 && c.note == "Size unknown until cleaned")
 
-            let empty = FakeShell([key: #"{"devices":{"rt":[]}}"#])
+            let empty = CacheFakeShell([key: #"{"devices":{"rt":[]}}"#])
             let g2 = await XcodeProvider().detect(context(home, shell: empty, tools: ["xcrun"]))
             #expect(!g2.flatMap(\.candidates).contains { $0.ruleID == "xcode.unavailableSimulators" })
         }
@@ -85,7 +85,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
     @Test func simulatorRuntimesUseJSONSize() async throws {
         try await withTempDir { home in
             let json = #"{"AAA-1":{"identifier":"AAA-1","version":"18.0","platformIdentifier":"com.apple.platform.iphonesimulator","sizeBytes":7000000000}}"#
-            let shell = FakeShell([
+            let shell = CacheFakeShell([
                 "xcrun simctl list devices unavailable -j": #"{"devices":{}}"#,
                 "xcrun simctl runtime list -j": json,
             ])
@@ -128,7 +128,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
         try await withTempDir { home in
             let cache = home.appendingPathComponent("brewcache")
             try write(4000, to: cache.appendingPathComponent("bottle"))
-            let shell = FakeShell(["brew --cache": cache.path + "\n"])
+            let shell = CacheFakeShell(["brew --cache": cache.path + "\n"])
             let g = await PackageManagerProvider().detect(context(home, shell: shell, tools: ["brew"]))
             let c = try #require(g.flatMap(\.candidates).first { $0.ruleID == "pm.homebrew" })
             #expect(c.action == .command(executable: "brew", arguments: ["cleanup", "--prune=all"]))
@@ -185,7 +185,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
             {"Type":"Local Volumes","Reclaimable":"500MB (50%)"}
             {"Type":"Build Cache","Reclaimable":"2GB"}
             """
-            let shell = FakeShell(["docker info": "ok", "docker system df --format {{json .}}": df])
+            let shell = CacheFakeShell(["docker info": "ok", "docker system df --format {{json .}}": df])
             let groups = await ContainerProvider().detect(context(home, shell: shell, tools: ["docker"]))
             let g = try #require(groups.first { $0.id == "container.docker" })
             let images = try #require(g.candidates.first { $0.ruleID == "container.images" })
@@ -200,7 +200,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
     @Test func dockerSkippedWhenUnavailable() async throws {
         try await withTempDir { home in
             #expect(await ContainerProvider().detect(context(home)).isEmpty)
-            let noDaemon = FakeShell()
+            let noDaemon = CacheFakeShell()
             #expect(await ContainerProvider().detect(context(home, shell: noDaemon, tools: ["docker"])).isEmpty)
         }
     }
@@ -208,7 +208,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
     @Test func dockerRawInfoGroup() async throws {
         try await withTempDir { home in
             try write(5000, to: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"))
-            let shell = FakeShell(["docker info": "ok", "docker system df --format {{json .}}": ""])
+            let shell = CacheFakeShell(["docker info": "ok", "docker system df --format {{json .}}": ""])
             let groups = await ContainerProvider().detect(context(home, shell: shell, tools: ["docker"]))
             let info = try #require(groups.first { $0.id == "container.dockerDisk.info" })
             #expect(info.candidates.isEmpty && info.detail != nil)
@@ -233,7 +233,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
             try write(10, to: home.appendingPathComponent(".cache/huggingface/hub/models--a--b/f"))
             try write(10, to: home.appendingPathComponent(".ollama/models/blobs/x"))
             let list = "NAME ID SIZE MODIFIED\nllama3:8b abc 4.7 GB 2 days ago\n"
-            let shell = FakeShell(["ollama list": list])
+            let shell = CacheFakeShell(["ollama list": list])
             let g = await AIModelProvider().detect(context(home, shell: shell, tools: ["ollama"]))
             let cands = try #require(g.first).candidates
             #expect(cands.allSatisfy { $0.risk == .danger })
@@ -279,7 +279,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
     @Test func homebrewFallsBackWhenBrewCacheFails() async throws {
         try await withTempDir { home in
             try write(10, to: home.appendingPathComponent("Library/Caches/Homebrew/x"))
-            let g = await PackageManagerProvider().detect(context(home, shell: FakeShell(), tools: ["brew"]))
+            let g = await PackageManagerProvider().detect(context(home, shell: CacheFakeShell(), tools: ["brew"]))
             let c = try #require(g.flatMap(\.candidates).first { $0.ruleID == "pm.homebrew" })
             #expect(c.action == .command(executable: "brew", arguments: ["cleanup", "--prune=all"]))
             #expect(c.url.path.hasSuffix("Library/Caches/Homebrew"))
@@ -320,7 +320,7 @@ private func assertContained(_ groups: [CacheGroup], in home: URL) {
     @Test func dockerInfoGroupSurvivesScanner() async throws {
         try await withTempDir { home in
             try write(5000, to: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw"))
-            let shell = FakeShell(["docker info": "ok", "docker system df --format {{json .}}": ""])
+            let shell = CacheFakeShell(["docker info": "ok", "docker system df --format {{json .}}": ""])
             let groups = await GlobalCacheScanner(context: context(home, shell: shell, tools: ["docker"])).scanCaches()
             #expect(groups.map(\.id) == ["container.dockerDisk.info"])
         }

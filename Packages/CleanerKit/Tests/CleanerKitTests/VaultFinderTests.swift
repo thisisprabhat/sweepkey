@@ -3,7 +3,7 @@ import Testing
 @testable import CleanerKit
 
 @Suite struct VaultFinderTests {
-    @Test(.enabled(if: gitAvailable))
+    @Test(.enabled(if: vaultGitAvailable))
     func findsIgnoredAndAlwaysCollectButNotArtifacts() async throws {
         try await withTempDir { dir in
             let (root, app) = try makeFixtureRepo(in: dir)
@@ -19,7 +19,7 @@ import Testing
         }
     }
 
-    @Test(.enabled(if: gitAvailable))
+    @Test(.enabled(if: vaultGitAvailable))
     func untrackedMatchAndExampleExcluded() async throws {
         try await withTempDir { dir in
             let (root, app) = try makeFixtureRepo(in: dir)
@@ -47,7 +47,7 @@ import Testing
         }
     }
 
-    @Test(.enabled(if: gitAvailable))
+    @Test(.enabled(if: vaultGitAvailable))
     func uncommittedWorkIncluded() async throws {
         try await withTempDir { dir in
             let (root, app) = try makeFixtureRepo(in: dir)
@@ -59,7 +59,7 @@ import Testing
         }
     }
 
-    @Test(.enabled(if: gitAvailable))
+    @Test(.enabled(if: vaultGitAvailable))
     func contentScanFlagsAwsKeyAndIgnoresBinary() async throws {
         try await withTempDir { dir in
             let (root, app) = try makeFixtureRepo(in: dir)
@@ -106,7 +106,7 @@ import Testing
         #expect(SecretPatterns.firstMatch(relativePath: "a/config/x.txt", extra: ["config/x.txt"]) == "config/x.txt")
     }
 
-    @Test(.enabled(if: gitAvailable))
+    @Test(.enabled(if: vaultGitAvailable))
     func gitFailureFallsBackToPatternWalkWithWarning() async throws {
         struct FailingLsFiles: ShellRunning {
             func run(_ executable: String, arguments: [String], currentDirectory: URL?,
@@ -130,7 +130,7 @@ import Testing
         }
     }
 
-    @Test(.enabled(if: gitAvailable))
+    @Test(.enabled(if: vaultGitAvailable))
     func unresolvedRootStillFindsFiles() async throws {
         let base = FileManager.default.temporaryDirectory
             .appendingPathComponent("CleanerKitTests-\(UUID().uuidString)", isDirectory: true)
