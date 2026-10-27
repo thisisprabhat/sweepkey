@@ -105,4 +105,43 @@ import Testing
         #expect(SecretPatterns.firstMatch(relativePath: "a/other/x.txt", extra: ["config/x.txt"]) == nil)
         #expect(SecretPatterns.firstMatch(relativePath: "a/config/x.txt", extra: ["config/x.txt"]) == "config/x.txt")
     }
+
+    @Test(.enabled(if: gitAvailable))
+    func gitFailureFallsBackToPatternWalkWithWarning() async throws {
+        struct FailingLsFiles: ShellRunning {
+            func run(_ executable: String, arguments: [String], currentDirectory: URL?,
+                     input: Data?, timeout: Duration) async throws -> ShellResult {
+                if arguments.contains("ls-files") { throw ShellError.launchFailed("boom") }
+                return try await ProcessShellRunner().run(
+                    executable, arguments: arguments, currentDirectory: currentDirectory,
+                    input: input, timeout: timeout)
+            }
+        }
+        try await withTempDir { dir in
+            let (root, _) = try makeFixtureRepo(in: dir)
+            let finder = SecretFinder(git: GitClient(shell: FailingLsFiles()))
+            let (files, warnings) = try await finder.findSecretsWithWarnings(VaultCollectOptions(roots: [root]))
+            #expect(warnings.count == 1)
+            let byPath = Dictionary(uniqueKeysWithValues: files.map { ($0.vaultPath, $0) })
+            #expect(byPath["Root/app/.env"]?.reason == .patternMatch)
+            #expect(byPath["Root/app/android/app/upload.jks"]?.reason == .patternMatch)
+            #expect(byPath["Root/app/pubspec.yaml"]?.reason == .alwaysCollect)
+            #expect(!files.contains { $0.vaultPath.contains("node_modules") })
+        }
+    }
+
+    @Test(.enabled(if: gitAvailable))
+    func unresolvedRootStillFindsFiles() async throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CleanerKitTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let (root, _) = try makeFixtureRepo(in: base)
+        let found = try await SecretFinder().findSecrets(VaultCollectOptions(
+            roots: [root], excludedPaths: [root.appendingPathComponent("app/android")]))
+        let paths = found.map(\.vaultPath)
+        #expect(paths.contains("Root/app/.env"))
+        #expect(paths.contains("Root/app/pubspec.yaml"))
+        #expect(!paths.contains { $0.contains("upload.jks") })
+    }
 }

@@ -21,12 +21,16 @@ public struct VaultExporter: VaultExporting {
             let (stagingParent, staging) = try makeStaging()
             defer { try? FileManager.default.removeItem(at: stagingParent) }
             let r = try exportFolder(request.files, to: staging, keepVersions: request.keepVersions)
-            try prepareOutput(request.destination)
+            let out = try prepareOutput(request.destination)
             let res = try await shell.run(
                 "/usr/bin/ditto",
-                arguments: ["-c", "-k", "--sequesterRsrc", "--keepParent", staging.path, request.destination.path],
+                arguments: ["-c", "-k", "--sequesterRsrc", "--keepParent", staging.path, out.path],
                 currentDirectory: nil, input: nil, timeout: .seconds(600))
-            guard res.succeeded else { throw VaultError.commandFailed("ditto: " + res.stderr) }
+            guard res.succeeded else {
+                try? FileManager.default.removeItem(at: out)
+                throw VaultError.commandFailed("ditto: " + res.stderr)
+            }
+            try finalize(out, request.destination)
             return VaultExportResult(
                 outputURL: request.destination, manifest: r.manifest, copiedCount: r.copied, unchangedCount: r.unchanged)
 
@@ -35,15 +39,19 @@ public struct VaultExporter: VaultExporting {
             let (stagingParent, staging) = try makeStaging()
             defer { try? FileManager.default.removeItem(at: stagingParent) }
             let r = try exportFolder(request.files, to: staging, keepVersions: request.keepVersions)
-            try prepareOutput(request.destination)
+            let out = try prepareOutput(request.destination)
             let res = try await shell.run(
                 "/usr/bin/hdiutil",
                 arguments: [
                     "create", "-srcfolder", staging.path, "-volname", "Cleaner Vault",
-                    "-encryption", "AES-256", "-stdinpass", "-format", "UDZO", "-ov", request.destination.path,
+                    "-encryption", "AES-256", "-stdinpass", "-format", "UDZO", "-ov", out.path,
                 ],
                 currentDirectory: nil, input: Data(password.utf8), timeout: .seconds(600))
-            guard res.succeeded else { throw VaultError.commandFailed("hdiutil create: " + res.stderr) }
+            guard res.succeeded else {
+                try? FileManager.default.removeItem(at: out)
+                throw VaultError.commandFailed("hdiutil create: " + res.stderr)
+            }
+            try finalize(out, request.destination)
             return VaultExportResult(
                 outputURL: request.destination, manifest: r.manifest, copiedCount: r.copied, unchangedCount: r.unchanged)
         }
@@ -60,11 +68,30 @@ public struct VaultExporter: VaultExporting {
         return (parent, staging)
     }
 
-    private func prepareOutput(_ destination: URL) throws {
+    /// Validates the destination and returns a temp sibling path to write to (keeps the name's extension
+    /// last, since hdiutil appends ".dmg" when it is missing).
+    private func prepareOutput(_ destination: URL) throws -> URL {
         let fm = FileManager.default
-        try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if (try? fm.attributesOfItem(atPath: destination.path)) != nil {
-            try fm.removeItem(at: destination)
+        let parent = destination.deletingLastPathComponent()
+        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        if let t = (try? fm.attributesOfItem(atPath: destination.path))?[.type] as? FileAttributeType,
+           t != .typeRegular {
+            throw VaultError.commandFailed("destination exists and is not a regular file")
+        }
+        return parent.appendingPathComponent(".tmp-\(UUID().uuidString)-" + destination.lastPathComponent)
+    }
+
+    private func finalize(_ tmp: URL, _ destination: URL) throws {
+        let fm = FileManager.default
+        do {
+            if (try? fm.attributesOfItem(atPath: destination.path)) != nil {
+                _ = try fm.replaceItemAt(destination, withItemAt: tmp)
+            } else {
+                try fm.moveItem(at: tmp, to: destination)
+            }
+        } catch {
+            try? fm.removeItem(at: tmp)
+            throw error
         }
     }
 

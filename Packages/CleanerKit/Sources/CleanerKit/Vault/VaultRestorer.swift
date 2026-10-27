@@ -23,45 +23,33 @@ public struct VaultRestorer: VaultRestoring {
         }
 
         let temp = fm.temporaryDirectory.appendingPathComponent(Self.tempPrefix + UUID().uuidString, isDirectory: true)
-        try fm.createDirectory(at: temp, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-
-        if vaultURL.pathExtension.lowercased() == "dmg" {
-            guard let password, !password.isEmpty else {
-                try? fm.removeItem(at: temp)
-                throw VaultError.passwordRequired
-            }
-            let mount = temp.appendingPathComponent("mount", isDirectory: true)
-            try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-            let res = try await shell.run(
-                "/usr/bin/hdiutil",
-                arguments: ["attach", "-stdinpass", "-nobrowse", "-readonly", "-mountpoint", mount.path, vaultURL.path],
-                currentDirectory: nil, input: Data(password.utf8), timeout: .seconds(120))
-            guard res.succeeded else {
-                try? fm.removeItem(at: temp)
-                let err = res.stderr.lowercased()
-                if err.contains("authentication") || err.contains("passphrase") || err.contains("password") {
-                    throw VaultError.wrongPassword
-                }
-                throw VaultError.commandFailed("hdiutil attach: " + res.stderr)
-            }
-            do {
-                return OpenedVault(manifest: try readManifest(in: mount), root: mount, mountPoint: mount)
-            } catch {
-                _ = try? await shell.run("/usr/bin/hdiutil", ["detach", mount.path, "-force"])
-                try? fm.removeItem(at: temp)
-                throw error
-            }
-        }
-
-        // zip
-        let res = try await shell.run(
-            "/usr/bin/ditto", arguments: ["-x", "-k", vaultURL.path, temp.path],
-            currentDirectory: nil, input: nil, timeout: .seconds(600))
-        guard res.succeeded else {
-            try? fm.removeItem(at: temp)
-            throw VaultError.commandFailed("ditto: " + res.stderr)
-        }
+        var mount: URL?
         do {
+            try fm.createDirectory(at: temp, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            if vaultURL.pathExtension.lowercased() == "dmg" {
+                guard let password, !password.isEmpty else { throw VaultError.passwordRequired }
+                let mountDir = temp.appendingPathComponent("mount", isDirectory: true)
+                try fm.createDirectory(at: mountDir, withIntermediateDirectories: true)
+                mount = mountDir
+                let res = try await shell.run(
+                    "/usr/bin/hdiutil",
+                    arguments: ["attach", "-stdinpass", "-nobrowse", "-readonly", "-mountpoint", mountDir.path, vaultURL.path],
+                    currentDirectory: nil, input: Data(password.utf8), timeout: .seconds(120))
+                guard res.succeeded else {
+                    mount = nil  // nothing attached
+                    let err = res.stderr.lowercased()
+                    if err.contains("authentication") || err.contains("passphrase") || err.contains("password") {
+                        throw VaultError.wrongPassword
+                    }
+                    throw VaultError.commandFailed("hdiutil attach: " + res.stderr)
+                }
+                return OpenedVault(manifest: try readManifest(in: mountDir), root: mountDir, mountPoint: mountDir)
+            }
+
+            let res = try await shell.run(
+                "/usr/bin/ditto", arguments: ["-x", "-k", vaultURL.path, temp.path],
+                currentDirectory: nil, input: nil, timeout: .seconds(600))
+            guard res.succeeded else { throw VaultError.commandFailed("ditto: " + res.stderr) }
             var root = temp
             if !fm.fileExists(atPath: temp.appendingPathComponent(VaultCoding.manifestName).path) {
                 let subs = ((try? fm.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)) ?? [])
@@ -72,6 +60,10 @@ public struct VaultRestorer: VaultRestoring {
             }
             return OpenedVault(manifest: try readManifest(in: root), root: root)
         } catch {
+            if let mount {
+                let r = try? await shell.run("/usr/bin/hdiutil", ["detach", mount.path])
+                if r?.succeeded != true { _ = try? await shell.run("/usr/bin/hdiutil", ["detach", mount.path, "-force"]) }
+            }
             try? fm.removeItem(at: temp)
             throw error
         }
@@ -113,7 +105,9 @@ public struct VaultRestorer: VaultRestoring {
             }
         case .matchGitRemote(let searchRoots):
             var byRemote: [String: URL] = [:]
-            for repo in findRepositories(under: searchRoots) {
+            let repos = findRepositories(under: searchRoots)
+                .sorted { ($0.path.count, $0.path) < ($1.path.count, $1.path) }
+            for repo in repos {
                 guard let remote = await git.info(forRepository: repo)?.remoteURL else { continue }
                 let key = Self.normalizeRemote(remote)
                 if byRemote[key] == nil { byRemote[key] = repo }
@@ -161,15 +155,19 @@ public struct VaultRestorer: VaultRestoring {
         while s.hasSuffix("/") { s.removeLast() }
         if s.hasSuffix(".git") { s.removeLast(4) }
 
-        if !s.contains("://"), let at = s.firstIndex(of: "@"), let colon = s[at...].firstIndex(of: ":") {
-            let host = s[s.index(after: at)..<colon].lowercased()
+        if !s.contains("://"), let colon = s.firstIndex(of: ":") {
+            var host = String(s[..<colon])
+            if let at = host.lastIndex(of: "@") { host = String(host[host.index(after: at)...]) }
             let path = s[s.index(after: colon)...].trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            return "https://\(host)/\(path)"
+            if !host.isEmpty, !host.contains("/"), !path.isEmpty {
+                return "https://\(host.lowercased())/\(path)"
+            }
         }
         if let comps = URLComponents(string: s), let scheme = comps.scheme?.lowercased(), scheme != "file",
            let host = comps.host?.lowercased() {
             let path = comps.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            return "https://\(host)\(comps.port.map { ":\($0)" } ?? "")/\(path)"
+            let port = comps.port.flatMap { $0 == 22 ? nil : ":\($0)" } ?? ""
+            return "https://\(host)\(port)/\(path)"
         }
         return s
     }
@@ -186,7 +184,16 @@ public struct VaultRestorer: VaultRestoring {
                 result.failed[id] = "destination is a symbolic link"
                 continue
             }
-            let exists = (try? fm.attributesOfItem(atPath: dest.path)) != nil
+            if Self.hasSymlinkAncestor(dest) {
+                result.failed[id] = "a parent directory of the destination is a symbolic link"
+                continue
+            }
+            let type = (try? fm.attributesOfItem(atPath: dest.path))?[.type] as? FileAttributeType
+            let exists = type != nil
+            if exists, type != .typeRegular {
+                result.failed[id] = "destination exists and is not a regular file"
+                continue
+            }
             if exists {
                 if let sha = try? VaultHashing.sha256(of: dest), sha == a.entry.sha256 {
                     result.skipped.append(id)
@@ -197,6 +204,8 @@ public struct VaultRestorer: VaultRestoring {
                     continue
                 }
             }
+            let tmp = dest.deletingLastPathComponent()
+                .appendingPathComponent(".\(dest.lastPathComponent).cleaner-tmp-\(UUID().uuidString)")
             do {
                 guard VaultExporter.isSafe(id), !a.vaultFileURL.isSymlink,
                       try VaultHashing.sha256(of: a.vaultFileURL) == a.entry.sha256 else {
@@ -204,14 +213,38 @@ public struct VaultRestorer: VaultRestoring {
                     continue
                 }
                 try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-                if exists { try fm.removeItem(at: dest) }
-                try fm.copyItem(at: a.vaultFileURL, to: dest)
-                try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
+                if Self.hasSymlinkAncestor(dest) {
+                    result.failed[id] = "a parent directory of the destination is a symbolic link"
+                    continue
+                }
+                try fm.copyItem(at: a.vaultFileURL, to: tmp)
+                try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tmp.path)
+                if exists {
+                    _ = try fm.replaceItemAt(dest, withItemAt: tmp)
+                } else {
+                    try fm.moveItem(at: tmp, to: dest)
+                }
                 result.restored.append(id)
             } catch {
+                try? fm.removeItem(at: tmp)
                 result.failed[id] = error.localizedDescription
             }
         }
         return result
+    }
+
+    /// True if an existing ancestor directory (below the first path level, so /var, /tmp etc. are allowed)
+    /// is a symbolic link.
+    static func hasSymlinkAncestor(_ dest: URL) -> Bool {
+        let comps = dest.deletingLastPathComponent().standardizedFileURL.pathComponents
+        guard comps.count > 2 else { return false }
+        var path = "/" + comps[1]
+        for c in comps.dropFirst(2) {
+            path += "/" + c
+            guard let t = (try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType
+            else { return false }
+            if t == .typeSymbolicLink { return true }
+        }
+        return false
     }
 }

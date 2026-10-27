@@ -16,13 +16,22 @@ public struct SecretFinder: SecretFinding {
     }
 
     public func findSecrets(_ options: VaultCollectOptions) async throws -> [SecretFile] {
+        try await findSecretsWithWarnings(options).files
+    }
+
+    /// Like `findSecrets`, but also reports repositories whose git queries failed.
+    /// Those repositories fall back to a plain pattern walk (over-collecting is the safe direction).
+    public func findSecretsWithWarnings(
+        _ options: VaultCollectOptions
+    ) async throws -> (files: [SecretFile], warnings: [String]) {
+        var warnings: [String] = []
         let gitAvailable = await git.isAvailable()
-        let excluded = options.excludedPaths.map { $0.standardizedFileURL }
+        let excluded = options.excludedPaths.map { $0.standardizedFileURL.resolvingSymlinksInPath() }
         var results: [SecretFile] = []
         var seen = Set<String>()
 
         for rawRoot in options.roots {
-            let root = rawRoot.standardizedFileURL
+            let root = rawRoot.standardizedFileURL.resolvingSymlinksInPath()
             var hits: [Hit] = []
             var repos: [URL] = []
             var repoInfo: [String: GitInfo?] = [:]
@@ -30,7 +39,7 @@ public struct SecretFinder: SecretFinding {
             var ambient: URL?
             if gitAvailable, !FileManager.default.fileExists(atPath: root.appendingPathComponent(".git").path),
                let r = await git.repositoryRoot(containing: root) {
-                ambient = r.standardizedFileURL
+                ambient = r.standardizedFileURL.resolvingSymlinksInPath()
             }
             var walked: [(url: URL, repo: URL?)] = []
             walk(root, repo: ambient, repos: &repos, excluded: excluded, into: &walked, gitAvailable: gitAvailable)
@@ -49,8 +58,21 @@ public struct SecretFinder: SecretFinding {
             }
 
             for repo in repos {
-                let ignored = (try? await git.ignoredPaths(repositoryRoot: repo)) ?? []
-                let untracked = (try? await git.untrackedPaths(repositoryRoot: repo)) ?? []
+                let ignored: [String]
+                let untracked: [String]
+                do {
+                    ignored = try await git.ignoredPaths(repositoryRoot: repo)
+                    untracked = try await git.untrackedPaths(repositoryRoot: repo)
+                } catch {
+                    warnings.append("git failed in \(repo.path); fell back to a plain pattern scan")
+                    for (url, fileRepo) in walked where fileRepo == repo {
+                        if let p = SecretPatterns.firstMatch(
+                            relativePath: relative(url, to: repo), extra: options.extraPatterns) {
+                            hits.append(Hit(url: url, reason: .patternMatch, rule: p, repo: repo))
+                        }
+                    }
+                    continue
+                }
                 var ignoredFiles: [URL] = []
                 for entry in ignored {
                     let isDirEntry = entry.hasSuffix("/")
@@ -88,10 +110,11 @@ public struct SecretFinder: SecretFinding {
             }
 
             for hit in hits {
-                let path = hit.url.standardizedFileURL.path
+                let hitURL = hit.url.standardizedFileURL.resolvingSymlinksInPath()
+                let path = hitURL.path
                 guard !seen.contains(path), isRegular(hit.url),
-                      !excluded.contains(where: { hit.url.standardizedFileURL == $0 || hit.url.isDescendant(of: $0) }),
-                      hit.url.standardizedFileURL.isDescendant(of: root) || hit.url.standardizedFileURL == root,
+                      !excluded.contains(where: { hitURL == $0 || hitURL.isDescendant(of: $0) }),
+                      hitURL.isDescendant(of: root),
                       let attrs = try? FileManager.default.attributesOfItem(atPath: hit.url.path),
                       let size = (attrs[.size] as? NSNumber)?.int64Value,
                       size <= options.maxFileSizeBytes else { continue }
@@ -111,7 +134,7 @@ public struct SecretFinder: SecretFinding {
                     modified: attrs[.modificationDate] as? Date, git: info, pathInRepository: pathInRepo))
             }
         }
-        return results.sorted { $0.vaultPath < $1.vaultPath }
+        return (results.sorted { $0.vaultPath < $1.vaultPath }, warnings)
     }
 
     // MARK: - Helpers

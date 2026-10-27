@@ -170,17 +170,67 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
     }
 
     @Test
+    func zipRefusesDirectoryDestinationAndReplacesFile() async throws {
+        try await withTempDir { dir in
+            let (_, files, _) = try fixture(dir)
+            let keep = dir.appendingPathComponent("existing.zip", isDirectory: true)
+            try writeText("precious", to: keep.appendingPathComponent("a.txt"))
+            await #expect(throws: VaultError.self) {
+                try await VaultExporter().export(.init(files: files, destination: keep, format: .zip))
+            }
+            #expect(FileManager.default.fileExists(atPath: keep.appendingPathComponent("a.txt").path))
+            let zip = dir.appendingPathComponent("v.zip")
+            try writeText("old", to: zip)
+            _ = try await VaultExporter().export(.init(files: files, destination: zip, format: .zip))
+            _ = try await VaultExporter().export(.init(files: files, destination: zip, format: .zip))
+            let r = try await ProcessShellRunner().run("/usr/bin/zipinfo", ["-1", zip.path])
+            #expect(r.stdout.contains("manifest.json"))
+            let left = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasPrefix(".tmp-") }
+            #expect(left.isEmpty)
+        }
+    }
+
+    @Test
+    func restoreRejectsSymlinkParentAndNonRegularDestination() async throws {
+        try await withTempDir { dir in
+            let (_, files, jks) = try fixture(dir)
+            let vault = dir.appendingPathComponent("vault")
+            _ = try await VaultExporter().export(.init(files: files, destination: vault, format: .folder))
+            let restorer = VaultRestorer()
+            let opened = try await restorer.open(vault, password: nil)
+            let real = dir.appendingPathComponent("elsewhere", isDirectory: true)
+            try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+            let androidDir = jks.deletingLastPathComponent().deletingLastPathComponent()
+            try FileManager.default.removeItem(at: androidDir)
+            try FileManager.default.createSymbolicLink(at: androidDir, withDestinationURL: real)
+            // .env destination is a directory
+            let envURL = androidDir.deletingLastPathComponent().appendingPathComponent(".env")
+            try FileManager.default.removeItem(at: envURL)
+            try FileManager.default.createDirectory(at: envURL, withIntermediateDirectories: true)
+            let plan = try await restorer.planRestore(opened, strategy: .originalPaths)
+            let res = try await restorer.restore(plan, overwrite: true)
+            #expect(res.failed.count == 2)
+            #expect(res.restored.isEmpty)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: real.path).isEmpty)
+        }
+    }
+
+    @Test
     func normalizesRemotes() {
         #expect(VaultRestorer.normalizeRemote("git@GitHub.com:acme/app.git") == "https://github.com/acme/app")
         #expect(VaultRestorer.normalizeRemote("https://GitHub.com/acme/app.git") == "https://github.com/acme/app")
         #expect(VaultRestorer.normalizeRemote("ssh://git@github.com/acme/app") == "https://github.com/acme/app")
+        #expect(VaultRestorer.normalizeRemote("ssh://git@github.com:22/acme/app.git") == "https://github.com/acme/app")
+        #expect(VaultRestorer.normalizeRemote("GitHub.com:acme/app.git") == "https://github.com/acme/app")
+        #expect(VaultRestorer.normalizeRemote("ssh://git@host:2222/a/b") == "https://host:2222/a/b")
     }
 
-    @Test(.enabled(if: gitAvailable))
-    func restoreByGitRemoteIntoFreshClone() async throws {
+    @Test(.enabled(if: gitAvailable), arguments: [false, true])
+    func restoreByGitRemoteIntoFreshClone(fileRemote: Bool) async throws {
         try await withTempDir { dir in
             let (root, app) = try makeFixtureRepo(in: dir)
-            try runGit(["remote", "add", "origin", "https://github.com/acme/app.git"], in: app)
+            let origin = fileRemote ? "file://" + app.path : "https://github.com/acme/app.git"
+            try runGit(["remote", "add", "origin", origin], in: app)
             let found = try await SecretFinder().findSecrets(VaultCollectOptions(roots: [root]))
             let vault = dir.appendingPathComponent("vault")
             _ = try await VaultExporter().export(.init(files: found, destination: vault, format: .folder))
@@ -189,7 +239,11 @@ private func fixture(_ dir: URL) throws -> (root: URL, files: [SecretFile], jks:
             try FileManager.default.createDirectory(at: clones, withIntermediateDirectories: true)
             try runGit(["clone", "-q", app.path, "fresh"], in: clones)
             let fresh = clones.appendingPathComponent("fresh")
-            try runGit(["remote", "set-url", "origin", "git@github.com:acme/app.git"], in: fresh)
+            if fileRemote {
+                try runGit(["remote", "set-url", "origin", origin], in: fresh)
+            } else {
+                try runGit(["remote", "set-url", "origin", "git@github.com:acme/app.git"], in: fresh)
+            }
             #expect(!FileManager.default.fileExists(atPath: fresh.appendingPathComponent(".env").path))
 
             let restorer = VaultRestorer()
