@@ -45,7 +45,7 @@ struct CleanResultView: View {
             }
             if !model.vaultBeforeCleanWarnings.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("Vault export warnings (secrets were still exported by pattern)",
+                    Label("Vault export warnings (the export itself succeeded)",
                           systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                     ForEach(model.vaultBeforeCleanWarnings, id: \.self) {
                         Text($0).font(.caption).foregroundStyle(.secondary)

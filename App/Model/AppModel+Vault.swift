@@ -79,17 +79,27 @@ extension AppModel {
     func planRestore() async {
         guard let vault = openedVault else { return }
         do {
-            restoreActions = try await services.vaultRestorer.planRestore(vault, strategy: resolvedStrategy)
+            if let restorer = services.vaultRestorer as? VaultRestorer {
+                let plan = try await restorer.planRestoreWithWarnings(vault, strategy: resolvedStrategy)
+                restoreActions = plan.actions
+                restoreWarnings = plan.warnings
+            } else {
+                restoreActions = try await services.vaultRestorer.planRestore(vault, strategy: resolvedStrategy)
+                restoreWarnings = []
+            }
             restoreSelection = Set(restoreActions.filter { !$0.identical }.map(\.id))
         } catch {
             lastError = error.localizedDescription
         }
     }
 
+    /// The actions the Restore button would run.
+    var chosenRestoreActions: [RestoreAction] { restoreActions.filter { restoreSelection.contains($0.id) } }
+
     func runRestore() async {
         isRestoring = true
         defer { isRestoring = false }
-        let chosen = restoreActions.filter { restoreSelection.contains($0.id) }
+        let chosen = chosenRestoreActions
         do {
             restoreResult = try await services.vaultRestorer.restore(chosen, overwrite: restoreOverwrite)
         } catch {
@@ -101,6 +111,7 @@ extension AppModel {
         if let vault = openedVault { await services.vaultRestorer.close(vault) }
         openedVault = nil
         restoreActions = []
+        restoreWarnings = []
         restoreResult = nil
     }
 }

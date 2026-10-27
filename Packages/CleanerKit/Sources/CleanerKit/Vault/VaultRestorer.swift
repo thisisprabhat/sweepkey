@@ -3,10 +3,17 @@ import Foundation
 public struct VaultRestorer: VaultRestoring {
     private let shell: ShellRunning
     private let git: GitClient
+    private let trash: @Sendable (URL) throws -> Void
 
-    public init(shell: ShellRunning = ProcessShellRunner(), git: GitClient = .init()) {
+    /// `trash` moves a file that a restore is about to overwrite out of the way (to the Trash by
+    /// default), so an overwrite never destroys the only copy. Injectable for tests.
+    public init(
+        shell: ShellRunning = ProcessShellRunner(), git: GitClient = .init(),
+        trash: @escaping @Sendable (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
+    ) {
         self.shell = shell
         self.git = git
+        self.trash = trash
     }
 
     private static let tempPrefix = "CleanerVaultOpen-"
@@ -97,10 +104,24 @@ public struct VaultRestorer: VaultRestoring {
     // MARK: - Plan
 
     public func planRestore(_ vault: OpenedVault, strategy: RestoreStrategy) async throws -> [RestoreAction] {
+        try await planRestoreWithWarnings(vault, strategy: strategy).actions
+    }
+
+    /// Like `planRestore`, and also explains entries that were left out.
+    public func planRestoreWithWarnings(
+        _ vault: OpenedVault, strategy: RestoreStrategy
+    ) async throws -> (actions: [RestoreAction], warnings: [String]) {
         var actions: [RestoreAction] = []
+        var warnings: [String] = []
         switch strategy {
         case .originalPaths:
             for e in vault.manifest.entries {
+                // A tampered or corrupt manifest must not aim a restore at an unrelated path: the
+                // source path has to end with the vault path minus its root folder.
+                guard Self.sourceMatchesVaultPath(e) else {
+                    warnings.append("Skipped \(e.vaultPath): its recorded source path \(e.sourcePath) does not match the vault path")
+                    continue
+                }
                 actions.append(action(e, vault: vault, destination: URL(fileURLWithPath: e.sourcePath)))
             }
         case .matchGitRemote(let searchRoots):
@@ -118,7 +139,17 @@ public struct VaultRestorer: VaultRestoring {
                 actions.append(action(e, vault: vault, destination: repo.appendingPathComponent(rel)))
             }
         }
-        return actions
+        return (actions, warnings)
+    }
+
+    /// True when `sourcePath` is absolute, has no `..`, and ends with `vaultPath` minus its first
+    /// component (`Projects/app/.env` needs a source ending in `/app/.env`).
+    static func sourceMatchesVaultPath(_ e: VaultManifestEntry) -> Bool {
+        guard VaultExporter.isSafe(e.vaultPath), e.sourcePath.hasPrefix("/") else { return false }
+        let tail = e.vaultPath.split(separator: "/").dropFirst()
+        let source = e.sourcePath.split(separator: "/")
+        guard !tail.isEmpty, !source.contains(".."), source.count > tail.count else { return false }
+        return Array(source.suffix(tail.count)) == Array(tail)
     }
 
     private func action(_ e: VaultManifestEntry, vault: OpenedVault, destination: URL) -> RestoreAction {
@@ -220,10 +251,11 @@ public struct VaultRestorer: VaultRestoring {
                 try fm.copyItem(at: a.vaultFileURL, to: tmp)
                 try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tmp.path)
                 if exists {
-                    _ = try fm.replaceItemAt(dest, withItemAt: tmp)
-                } else {
-                    try fm.moveItem(at: tmp, to: dest)
+                    // Keep the file being replaced: it goes to the Trash first. If that fails, the
+                    // restore of this file fails and the original stays in place.
+                    try trash(dest)
                 }
+                try fm.moveItem(at: tmp, to: dest)
                 result.restored.append(id)
             } catch {
                 try? fm.removeItem(at: tmp)

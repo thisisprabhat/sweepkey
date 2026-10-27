@@ -81,9 +81,11 @@ public struct VaultExporter: VaultExporting {
         return parent.appendingPathComponent(".tmp-\(UUID().uuidString)-" + destination.lastPathComponent)
     }
 
+    /// Moves the finished archive into place, readable by the owner only (it holds secrets).
     private func finalize(_ tmp: URL, _ destination: URL) throws {
         let fm = FileManager.default
         do {
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tmp.path)
             if (try? fm.attributesOfItem(atPath: destination.path)) != nil {
                 _ = try fm.replaceItemAt(destination, withItemAt: tmp)
             } else {

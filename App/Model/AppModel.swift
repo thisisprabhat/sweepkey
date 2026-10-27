@@ -86,6 +86,8 @@ final class AppModel {
     var openedVault: OpenedVault?
     var restoreStrategy: RestoreStrategy = .originalPaths
     var restoreActions: [RestoreAction] = []
+    /// Manifest entries the plan left out, and why.
+    var restoreWarnings: [String] = []
     var restoreSelection: Set<RestoreAction.ID> = []
     var restoreOverwrite = false
     var restoreResult: RestoreResult?
