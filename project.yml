@@ -7,7 +7,9 @@ packages:
     path: Packages/CleanerKit
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: 2.6.0
+    # Pinned exactly: XcodeGen does not commit a Package.resolved for the generated (ignored)
+    # project, so the version is fixed here. Bump deliberately and re-test updates.
+    exactVersion: 2.10.1
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.prabhatkumar.Cleaner
@@ -19,8 +21,12 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
     CODE_SIGN_STYLE: Automatic
-    # Entitlements (App Group, widget sandbox) need a real development certificate, so they are
-    # off for ad-hoc builds. `make build-signed` points these at Config/*.entitlements.
+    # Entitlements (App Group, widget sandbox) need a real certificate and team, so they are off
+    # for ad-hoc builds. `make build-signed` and scripts/release.sh point these at
+    # Config/*.entitlements. The App Group is Team-ID-prefixed
+    # ($(TeamIdentifierPrefix)com.prabhatkumar.Cleaner), which Developer ID builds can use
+    # without a provisioning profile; both targets read the resolved id from the
+    # CleanerAppGroup Info.plist key.
     CLEANER_APP_ENTITLEMENTS: ""
     CLEANER_WIDGET_ENTITLEMENTS: ""
     # Set by the release workflow; empty disables the updater.
@@ -48,6 +54,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.prabhatkumar.Cleaner
             CFBundleURLSchemes: [cleaner]
+        CleanerAppGroup: $(TeamIdentifierPrefix)com.prabhatkumar.Cleaner
         SUPublicEDKey: $(SPARKLE_PUBLIC_KEY)
         SUFeedURL: $(SPARKLE_FEED_URL)
         SUEnableAutomaticChecks: true
@@ -79,6 +86,7 @@ targets:
         CFBundleDisplayName: Cleaner Widgets
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CleanerAppGroup: $(TeamIdentifierPrefix)com.prabhatkumar.Cleaner
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

@@ -71,6 +71,11 @@ No telemetry, no analytics, no accounts. Everything stays on your Mac, and vault
 2. Generate Sparkle keys (`generate_keys`) and add GitHub secrets: `DEVELOPER_ID_CERT_P12` (base64), `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`, `SPARKLE_PRIVATE_KEY`, `SPARKLE_PUBLIC_KEY`.
 3. Push a tag `vX.Y.Z`. [release.yml](.github/workflows/release.yml) archives, signs, notarizes, staples, builds the DMG and appcast, creates the GitHub Release, and prints the cask sha256.
 
+`scripts/release.sh` (used by the workflow, runnable locally) also:
+- signs with `Config/Cleaner.entitlements` and `Config/CleanerWidgets.entitlements` (`CLEANER_APP_ENTITLEMENTS` / `CLEANER_WIDGET_ENTITLEMENTS`), so the shipped widget is sandboxed and shares the App Group `$(TeamIdentifierPrefix)com.prabhatkumar.Cleaner` with the app. The Team-ID prefix form works for Developer ID builds without a provisioning profile; both targets read the resolved id from the `CleanerAppGroup` Info.plist key;
+- refuses to run while `SPARKLE_FEED_URL` (from the environment or `project.yml`) still contains `OWNER`;
+- stamps the release version into `CleanerVersion.current` (the CLI's `--version`) for the build and passes it to the app as `MARKETING_VERSION`.
+
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md). New cleaning rules are just JSON: [docs/rules.md](docs/rules.md).
 
