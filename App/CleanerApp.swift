@@ -6,6 +6,10 @@ final class CleanerAppDelegate: NSObject, NSApplicationDelegate {
     @MainActor static var onOpen: (([URL]) -> Void)?
     private var pending: [URL] = []
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated { AutomationController.shared.start() }
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             if let handler = Self.onOpen { handler(urls) } else { pending += urls }
@@ -22,11 +26,11 @@ final class CleanerAppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct CleanerApp: App {
     @NSApplicationDelegateAdaptor(CleanerAppDelegate.self) private var delegate
-    @State private var model = AppModel(services: .live)
+    @State private var model = AppModel.shared
     @StateObject private var updater = UpdaterController()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             Group {
                 if model.settings.hasCompletedOnboarding {
                     RootView()
@@ -39,6 +43,7 @@ struct CleanerApp: App {
                 CleanerAppDelegate.onOpen = { [model] urls in model.addScanRoots(urls) }
                 delegate.flushPending()
             }
+            .onOpenURL { AppRouter.handle($0, model: model) }
         }
         .commands {
             AppCommands(model: model)
@@ -49,6 +54,16 @@ struct CleanerApp: App {
             SettingsView()
                 .environment(model)
         }
+
+        MenuBarExtra(
+            "Cleaner", systemImage: "externaldrive.badge.checkmark",
+            isInserted: Binding(
+                get: { model.settings.showMenuBarExtra }, set: { model.settings.showMenuBarExtra = $0 })
+        ) {
+            MenuBarPopover()
+                .environment(model)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 

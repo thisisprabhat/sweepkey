@@ -77,6 +77,7 @@ extension AppModel {
         let found = await groups
         guard isCurrent() else { return }
         scanError = failure
+        if failure == nil { AutomationState.shared.resultsMayBeOutdated = false }
         cacheGroups = found
         scanState = .done(summary ?? ScanSummary(
             projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
