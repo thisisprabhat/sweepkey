@@ -1,0 +1,39 @@
+name: Cleaner
+options:
+  deploymentTarget:
+    macOS: "26.0"
+packages:
+  CleanerKit:
+    path: Packages/CleanerKit
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.prabhatkumar.Cleaner
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Cleaner:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: CleanerKit
+        product: CleanerKit
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Cleaner
+schemes:
+  Cleaner:
+    build:
+      targets:
+        Cleaner: all
+    run:
+      config: Debug
+    test:
+      config: Debug
