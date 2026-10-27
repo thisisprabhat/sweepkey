@@ -9,7 +9,7 @@ cask "sweepkey" do
   desc "Developer-disk cleaner and secrets vault"
   homepage "https://github.com/thisisprabhat/sweepkey"
 
-  depends_on macos: ">= :tahoe"
+  depends_on macos: :tahoe
 
   livecheck do
     url :url
