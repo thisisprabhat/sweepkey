@@ -25,4 +25,14 @@ import Testing
     @Test func returnsNilWhenMissing() {
         #expect(RuleResources.rulesURL(executablePath: "/nonexistent/dir/cleaner", mainResourceURL: nil) == nil)
     }
+
+    @Test func bundledLoadsInDebugAndNeverTrapsWhenShippedLookupFails() throws {
+        // RuleResources finds nothing in the test runner; the DEBUG-only Bundle.module fallback
+        // supplies rules. In release builds the same path throws LoadError.resourceMissing.
+        #if DEBUG
+        #expect(try !RuleSet.bundled().isEmpty)
+        #else
+        #expect(throws: RuleSet.LoadError.self) { try RuleSet.bundled() }
+        #endif
+    }
 }

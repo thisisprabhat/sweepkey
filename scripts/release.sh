@@ -28,9 +28,9 @@ KC_ARGS=()
 NOTARY_KC=()
 if [ -n "${KEYCHAIN:-}" ]; then KC_ARGS=(--keychain "$KEYCHAIN"); NOTARY_KC=(--keychain "$KEYCHAIN"); fi
 
-sign() { codesign --force --options runtime --timestamp "${KC_ARGS[@]}" --sign "$IDENTITY" "$@"; }
+sign() { codesign --force --options runtime --timestamp ${KC_ARGS[@]+"${KC_ARGS[@]}"} --sign "$IDENTITY" "$@"; }
 notarize() {
-  xcrun notarytool submit "$1" --keychain-profile "$PROFILE" "${NOTARY_KC[@]}" --wait
+  xcrun notarytool submit "$1" --keychain-profile "$PROFILE" ${NOTARY_KC[@]+"${NOTARY_KC[@]}"} --wait
 }
 
 rm -rf "$OUT"
