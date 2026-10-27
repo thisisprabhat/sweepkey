@@ -1,1 +1,927 @@
-[]
+[
+  {
+    "id": "javascript.node_modules",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": "node_modules",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm install"
+  },
+  {
+    "id": "javascript.next",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".next",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.nuxt",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".nuxt",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.output",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".output",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.svelte_kit",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".svelte-kit",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.turbo",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".turbo",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.parcel_cache",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".parcel-cache",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.vite",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".vite",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run dev"
+  },
+  {
+    "id": "javascript.angular_cache",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".angular/cache",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "ng build"
+  },
+  {
+    "id": "javascript.expo",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".expo",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npx expo start"
+  },
+  {
+    "id": "javascript.docusaurus",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".docusaurus",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build"
+  },
+  {
+    "id": "javascript.storybook_static",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": "storybook-static",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm run build-storybook"
+  },
+  {
+    "id": "javascript.coverage",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": "coverage",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "npm test -- --coverage"
+  },
+  {
+    "id": "javascript.vercel",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".vercel",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "vercel pull"
+  },
+  {
+    "id": "javascript.netlify",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": ".netlify",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "netlify build"
+  },
+  {
+    "id": "javascript.dist",
+    "ecosystemID": "javascript",
+    "markers": [
+      "package.json"
+    ],
+    "target": "dist",
+    "risk": "caution",
+    "enabledByDefault": false,
+    "regenerate": "npm run build",
+    "note": "Sometimes committed or hand-written; off by default."
+  },
+  {
+    "id": "python.dot_venv",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".venv",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "python -m venv .venv && pip install -r requirements.txt"
+  },
+  {
+    "id": "python.venv",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": "venv",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "python -m venv venv && pip install -r requirements.txt"
+  },
+  {
+    "id": "python.env",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": "env",
+    "risk": "caution",
+    "enabledByDefault": false,
+    "regenerate": "python -m venv env && pip install -r requirements.txt",
+    "note": "A folder named env is sometimes hand-written; off by default."
+  },
+  {
+    "id": "python.pycache",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": "__pycache__",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "python (regenerated on import)"
+  },
+  {
+    "id": "python.pytest_cache",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".pytest_cache",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "pytest"
+  },
+  {
+    "id": "python.mypy_cache",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".mypy_cache",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "mypy ."
+  },
+  {
+    "id": "python.ruff_cache",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".ruff_cache",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "ruff check ."
+  },
+  {
+    "id": "python.tox",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".tox",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "tox"
+  },
+  {
+    "id": "python.nox",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".nox",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "nox"
+  },
+  {
+    "id": "python.egg_info",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": "*.egg-info",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "pip install -e ."
+  },
+  {
+    "id": "python.build",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": "build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "python -m build"
+  },
+  {
+    "id": "python.dist",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": "dist",
+    "risk": "caution",
+    "enabledByDefault": false,
+    "regenerate": "python -m build",
+    "note": "Sometimes committed or hand-written; off by default."
+  },
+  {
+    "id": "python.ipynb_checkpoints",
+    "ecosystemID": "python",
+    "markers": [
+      "pyproject.toml",
+      "requirements.txt",
+      "setup.py",
+      "setup.cfg",
+      "Pipfile"
+    ],
+    "target": ".ipynb_checkpoints",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "(recreated by Jupyter)"
+  },
+  {
+    "id": "flutter.build",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": "build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "flutter build"
+  },
+  {
+    "id": "flutter.dart_tool",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": ".dart_tool",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "flutter pub get"
+  },
+  {
+    "id": "flutter.ios_pods",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": "ios/Pods",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cd ios && pod install"
+  },
+  {
+    "id": "flutter.ios__symlinks",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": "ios/.symlinks",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "flutter pub get && cd ios && pod install"
+  },
+  {
+    "id": "flutter.macos_pods",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": "macos/Pods",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cd macos && pod install"
+  },
+  {
+    "id": "flutter.android__gradle",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": "android/.gradle",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "flutter.android_app_build",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": "android/app/build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "flutter build apk"
+  },
+  {
+    "id": "flutter.flutter_plugins",
+    "ecosystemID": "flutter",
+    "markers": [
+      "pubspec.yaml"
+    ],
+    "target": ".flutter-plugins*",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "flutter pub get"
+  },
+  {
+    "id": "android.build",
+    "ecosystemID": "android",
+    "markers": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "target": "build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "android.gradle",
+    "ecosystemID": "android",
+    "markers": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "target": ".gradle",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "android.kotlin",
+    "ecosystemID": "android",
+    "markers": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "target": ".kotlin",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "android.cxx",
+    "ecosystemID": "android",
+    "markers": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "target": ".cxx",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "android.external_native_build",
+    "ecosystemID": "android",
+    "markers": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "target": ".externalNativeBuild",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "android.out",
+    "ecosystemID": "android",
+    "markers": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle",
+      "settings.gradle.kts"
+    ],
+    "target": "out",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "./gradlew build"
+  },
+  {
+    "id": "jvm.target",
+    "ecosystemID": "jvm",
+    "markers": [
+      "pom.xml"
+    ],
+    "target": "target",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "mvn package"
+  },
+  {
+    "id": "rust.target",
+    "ecosystemID": "rust",
+    "markers": [
+      "Cargo.toml"
+    ],
+    "target": "target",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cargo build"
+  },
+  {
+    "id": "swift.build",
+    "ecosystemID": "swift",
+    "markers": [
+      "Package.swift"
+    ],
+    "target": ".build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "swift build"
+  },
+  {
+    "id": "swift.pods",
+    "ecosystemID": "swift",
+    "markers": [
+      "Podfile"
+    ],
+    "target": "Pods",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "pod install"
+  },
+  {
+    "id": "swift.carthage_build",
+    "ecosystemID": "swift",
+    "markers": [
+      "Cartfile"
+    ],
+    "target": "Carthage/Build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "carthage bootstrap"
+  },
+  {
+    "id": "swift.derived_data",
+    "ecosystemID": "swift",
+    "markers": [
+      "*.xcodeproj",
+      "*.xcworkspace"
+    ],
+    "target": "DerivedData",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "xcodebuild build",
+    "note": "DerivedData kept inside the project."
+  },
+  {
+    "id": "go.bin",
+    "ecosystemID": "go",
+    "markers": [
+      "go.mod"
+    ],
+    "target": "bin",
+    "risk": "caution",
+    "enabledByDefault": false,
+    "regenerate": "go build ./...",
+    "note": "May contain committed or hand-written binaries; off by default."
+  },
+  {
+    "id": "go.vendor",
+    "ecosystemID": "go",
+    "markers": [
+      "go.mod"
+    ],
+    "target": "vendor",
+    "risk": "caution",
+    "enabledByDefault": false,
+    "regenerate": "go mod vendor",
+    "note": "Often committed on purpose; off by default."
+  },
+  {
+    "id": "dotnet.bin",
+    "ecosystemID": "dotnet",
+    "markers": [
+      "*.csproj",
+      "*.sln",
+      "*.fsproj",
+      "*.vbproj"
+    ],
+    "target": "bin",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "dotnet build"
+  },
+  {
+    "id": "dotnet.obj",
+    "ecosystemID": "dotnet",
+    "markers": [
+      "*.csproj",
+      "*.sln",
+      "*.fsproj",
+      "*.vbproj"
+    ],
+    "target": "obj",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "dotnet restore"
+  },
+  {
+    "id": "cpp.build",
+    "ecosystemID": "cpp",
+    "markers": [
+      "CMakeLists.txt"
+    ],
+    "target": "build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cmake -B build && cmake --build build"
+  },
+  {
+    "id": "cpp.cmake_build",
+    "ecosystemID": "cpp",
+    "markers": [
+      "CMakeLists.txt"
+    ],
+    "target": "cmake-build-*",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cmake --build cmake-build-debug"
+  },
+  {
+    "id": "cpp.cmake_files",
+    "ecosystemID": "cpp",
+    "markers": [
+      "CMakeLists.txt"
+    ],
+    "target": "CMakeFiles",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cmake ."
+  },
+  {
+    "id": "elixir.build",
+    "ecosystemID": "elixir",
+    "markers": [
+      "mix.exs"
+    ],
+    "target": "_build",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "mix compile"
+  },
+  {
+    "id": "elixir.deps",
+    "ecosystemID": "elixir",
+    "markers": [
+      "mix.exs"
+    ],
+    "target": "deps",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "mix deps.get"
+  },
+  {
+    "id": "haskell.stack_work",
+    "ecosystemID": "haskell",
+    "markers": [
+      "stack.yaml"
+    ],
+    "target": ".stack-work",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "stack build"
+  },
+  {
+    "id": "haskell.dist_newstyle",
+    "ecosystemID": "haskell",
+    "markers": [
+      "cabal.project",
+      "*.cabal"
+    ],
+    "target": "dist-newstyle",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "cabal build"
+  },
+  {
+    "id": "ruby.vendor_bundle",
+    "ecosystemID": "ruby",
+    "markers": [
+      "Gemfile"
+    ],
+    "target": "vendor/bundle",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "bundle install"
+  },
+  {
+    "id": "ruby.bundle",
+    "ecosystemID": "ruby",
+    "markers": [
+      "Gemfile"
+    ],
+    "target": ".bundle",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "bundle install"
+  },
+  {
+    "id": "php.vendor",
+    "ecosystemID": "php",
+    "markers": [
+      "composer.json"
+    ],
+    "target": "vendor",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "composer install"
+  },
+  {
+    "id": "zig.zig_cache",
+    "ecosystemID": "zig",
+    "markers": [
+      "build.zig"
+    ],
+    "target": ".zig-cache",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "zig build"
+  },
+  {
+    "id": "zig.zig_out",
+    "ecosystemID": "zig",
+    "markers": [
+      "build.zig"
+    ],
+    "target": "zig-out",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "zig build"
+  },
+  {
+    "id": "scala.bloop",
+    "ecosystemID": "scala",
+    "markers": [
+      "build.sbt"
+    ],
+    "target": ".bloop",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "sbt bloopInstall"
+  },
+  {
+    "id": "scala.metals",
+    "ecosystemID": "scala",
+    "markers": [
+      "build.sbt"
+    ],
+    "target": ".metals",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "(recreated by Metals)"
+  },
+  {
+    "id": "scala.target",
+    "ecosystemID": "scala",
+    "markers": [
+      "build.sbt"
+    ],
+    "target": "target",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "sbt compile"
+  },
+  {
+    "id": "bazel.bazel",
+    "ecosystemID": "bazel",
+    "markers": [
+      "WORKSPACE",
+      "WORKSPACE.bazel",
+      "MODULE.bazel"
+    ],
+    "target": "bazel-*",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "bazel build //...",
+    "note": "Symlinks into the Bazel output base."
+  },
+  {
+    "id": "terraform.terraform",
+    "ecosystemID": "terraform",
+    "markers": [
+      "*.tf"
+    ],
+    "target": ".terraform",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "terraform init"
+  },
+  {
+    "id": "unity.library",
+    "ecosystemID": "unity",
+    "markers": [
+      "ProjectSettings/ProjectVersion.txt"
+    ],
+    "target": "Library",
+    "risk": "caution",
+    "enabledByDefault": true,
+    "regenerate": "Open the project in Unity",
+    "note": "Slow to rebuild (a full reimport); caution."
+  },
+  {
+    "id": "unity.temp",
+    "ecosystemID": "unity",
+    "markers": [
+      "ProjectSettings/ProjectVersion.txt"
+    ],
+    "target": "Temp",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "Open the project in Unity"
+  },
+  {
+    "id": "unity.obj",
+    "ecosystemID": "unity",
+    "markers": [
+      "ProjectSettings/ProjectVersion.txt"
+    ],
+    "target": "Obj",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "Open the project in Unity"
+  },
+  {
+    "id": "unreal.intermediate",
+    "ecosystemID": "unreal",
+    "markers": [
+      "*.uproject"
+    ],
+    "target": "Intermediate",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "Regenerate project files and build"
+  },
+  {
+    "id": "unreal.binaries",
+    "ecosystemID": "unreal",
+    "markers": [
+      "*.uproject"
+    ],
+    "target": "Binaries",
+    "risk": "safe",
+    "enabledByDefault": true,
+    "regenerate": "Build the project"
+  },
+  {
+    "id": "unreal.derived_data_cache",
+    "ecosystemID": "unreal",
+    "markers": [
+      "*.uproject"
+    ],
+    "target": "DerivedDataCache",
+    "risk": "caution",
+    "enabledByDefault": true,
+    "regenerate": "Reopen the project in Unreal Editor",
+    "note": "Slow to rebuild (shader cache); caution."
+  }
+]
