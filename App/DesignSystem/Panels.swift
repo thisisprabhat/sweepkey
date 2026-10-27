@@ -31,12 +31,11 @@ enum Panels {
     }
 
     static func reveal(_ url: URL) {
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        Finder.reveal(url)
     }
 
     static func openInTerminal(_ url: URL) {
-        guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else { return }
-        NSWorkspace.shared.open([url], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration())
+        Terminal.open(url)
     }
 
     static func copy(_ string: String) {

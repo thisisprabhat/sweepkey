@@ -7,6 +7,8 @@ struct CleanResultView: View {
 
     private var failures: [CleanItemResult] { report.items.filter { $0.status == .failed } }
 
+    private var approximate: [CleanItemResult] { report.items.filter(AppLogic.isApproximate) }
+
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: report.dryRun ? "doc.text.magnifyingglass" : "checkmark.seal.fill")
@@ -21,6 +23,25 @@ struct CleanResultView: View {
                 Text("\(SizeFormat.string(report.freedBytes)) freed").font(.title.weight(.semibold)).monospacedDigit()
                 Text(report.mode == .trash ? "Items were moved to the Trash." : "Items were deleted permanently.")
                     .foregroundStyle(.secondary)
+            }
+            if !approximate.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(approximate, id: \.candidate.id) { item in
+                        Text("\(item.candidate.title): up to \(SizeFormat.string(item.candidate.sizeBytes)) (exact size not measurable)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if !model.vaultBeforeCleanWarnings.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Vault export warnings (secrets were still exported by pattern)",
+                          systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    ForEach(model.vaultBeforeCleanWarnings, id: \.self) {
+                        Text($0).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             if !failures.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {

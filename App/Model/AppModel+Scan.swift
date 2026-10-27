@@ -5,11 +5,14 @@ extension AppModel {
     /// Fire-and-forget scan; stop it with `cancelScan()`.
     func scan() {
         guard !scanState.isScanning else { return }
-        scanTask = Task { await runScan() }
+        scanGeneration += 1
+        let generation = scanGeneration
+        scanTask = Task { await runScan(generation: generation) }
     }
 
     /// Cancels a running scan and returns to idle (keeping any projects found so far).
     func cancelScan() {
+        scanGeneration += 1
         scanTask?.cancel()
         scanTask = nil
         if scanState.isScanning { scanState = .idle }
@@ -19,19 +22,49 @@ extension AppModel {
         if case .idle = scanState, !settings.scanRoots.isEmpty { scan() }
     }
 
-    func runScan() async {
+    /// Launch sequence: journal, last cached scan, then an automatic scan when there is no cache
+    /// (or when the DEBUG `-CleanerAutoScan YES` argument is given).
+    func bootstrap() async {
+        await loadJournal()
+        let restored = await loadCachedScan()
+        if AppRuntime.autoScan || !restored { scanIfNeeded() }
+    }
+
+    /// Shows the last persisted scan immediately. Returns true if one was loaded.
+    @discardableResult
+    func loadCachedScan() async -> Bool {
+        guard case .idle = scanState, let cache = services.scanCache, let snapshot = await cache.load(),
+              case .idle = scanState else { return false }
+        projects = snapshot.projects
+        scanState = .done(ScanSummary(
+            projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
+            totalBytes: projects.reduce(0) { $0 + $1.reclaimableBytes },
+            startedAt: snapshot.savedAt, finishedAt: snapshot.savedAt))
+        return true
+    }
+
+    func persistScanCache() async {
+        guard let cache = services.scanCache else { return }
+        do { try await cache.save(projects) } catch { lastError = error.localizedDescription }
+    }
+
+    func runScan(generation: Int? = nil) async {
+        let token = generation ?? { scanGeneration += 1; return scanGeneration }()
+        func isCurrent() -> Bool { token == scanGeneration && !Task.isCancelled }
         scanError = nil
         projects = []
         selection = []
         scanState = .scanning(ScanProgress(directoriesVisited: 0, currentPath: "", projectsFound: 0, bytesFound: 0))
         let options = ScanOptions(
-            roots: settings.scanRoots, excludedPaths: settings.excludedPaths,
+            roots: AppLogic.resolve(settings.scanRoots), excludedPaths: AppLogic.resolve(settings.excludedPaths),
             ruleOverrides: settings.ruleOverrides, customRules: settings.customRules,
             staleAfterDays: settings.staleAfterDays)
         async let groups = services.caches.scanCaches()
         var summary: ScanSummary?
+        var failure: String?
         do {
             for try await event in services.scanner.scan(options) {
+                guard isCurrent() else { break }
                 switch event {
                 case .progress(let progress): scanState = .scanning(progress)
                 case .project(let project): projects.append(project)
@@ -39,13 +72,16 @@ extension AppModel {
                 }
             }
         } catch {
-            scanError = error.localizedDescription
+            failure = error.localizedDescription
         }
-        cacheGroups = await groups
-        if Task.isCancelled { return }
+        let found = await groups
+        guard isCurrent() else { return }
+        scanError = failure
+        cacheGroups = found
         scanState = .done(summary ?? ScanSummary(
             projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
             totalBytes: projects.reduce(0) { $0 + $1.reclaimableBytes }, startedAt: Date(), finishedAt: Date()))
+        await persistScanCache()
         await loadJournal()
     }
 
@@ -127,7 +163,8 @@ extension AppModel {
     // MARK: Safety
 
     func evaluateVerdicts(for candidates: [Candidate]) async {
-        let result = await services.safety.evaluate(candidates, scanRoots: settings.scanRoots)
+        let safety = services.safetyFor?(settings.pinnedProjects) ?? services.safety
+        let result = await safety.evaluate(candidates, scanRoots: AppLogic.resolve(settings.scanRoots))
         verdicts.merge(result) { _, new in new }
     }
 }

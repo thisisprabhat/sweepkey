@@ -10,6 +10,18 @@ struct VaultCollectView: View {
         VStack(spacing: 0) {
             VaultCollectOptionsView()
             Divider()
+            if !model.vaultWarnings.isEmpty && !model.isFindingSecrets {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Some repositories could not be queried; their files were collected by pattern only.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout.weight(.medium))
+                    ForEach(model.vaultWarnings, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+                }
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20).padding(.vertical, 8)
+                Divider()
+            }
             if model.isFindingSecrets {
                 VStack(spacing: 12) {
                     ScanProgressRing(symbolName: "lock.shield")
