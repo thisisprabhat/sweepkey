@@ -6,8 +6,7 @@
 
 A native macOS 26+ app (with a companion `sweepkey` CLI) that reclaims disk space by removing regenerable developer artifacts and caches, and collects your un-committed secrets into a vault before you clean. Open source (MIT), distributed outside the App Store.
 
-<!-- Screenshots: add images under docs/images/ and link them here. -->
-*Screenshots: coming soon.*
+<p align="center"><img src="docs/images/demo.gif" width="860" alt="A tour of Sweepkey: the Dashboard's reclaimable space by category, Caches, cleanup History, Rules and Recipes."></p>
 
 ## Features
 - **Project cleaning.** Finds `node_modules`, `target`, `build`, `.venv`, `Pods`, `DerivedData`-style folders and more across 20+ ecosystems, driven by JSON rules ([docs/rules.md](docs/rules.md)). Shows size, last activity and how to regenerate each item.
@@ -18,6 +17,16 @@ A native macOS 26+ app (with a companion `sweepkey` CLI) that reclaims disk spac
 - **Updates** via Sparkle 2, EdDSA-signed.
 
 More in [docs/](docs/README.md).
+
+## Screenshots
+Screenshots use the app's demo data. They follow your GitHub light or dark theme.
+
+| | |
+|---|---|
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshots/dark/dashboard.png"><img src="docs/images/screenshots/light/dashboard.png" alt="Dashboard: free disk space, reclaimable space by category and the largest rebuildable folders"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshots/dark/projects.png"><img src="docs/images/screenshots/light/projects.png" alt="Projects: every project with its framework, last activity, reclaimable size and risk, plus the inspector with git details"></picture> |
+| **Dashboard.** Free space, what can be reclaimed by category, and the biggest rebuildable folders. | **Projects.** Every project, its rebuildable folders and git state, with the inspector open. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshots/dark/vault.png"><img src="docs/images/screenshots/light/vault.png" alt="Vault: un-committed secret files found in each project, ready to export"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshots/dark/clean-confirm.png"><img src="docs/images/screenshots/light/clean-confirm.png" alt="The confirmation sheet listing each item with its path, risk and size before anything is deleted"></picture> |
+| **Vault.** Un-committed secrets found per project, ready to export before you clean. | **Confirm.** Every clean ends on this sheet: items, risk, size, Trash or delete, Dry Run or Clean. |
 
 ## Install
 
