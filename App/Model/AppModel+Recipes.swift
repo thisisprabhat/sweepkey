@@ -23,6 +23,11 @@ extension AppModel {
         let report = await recipe.run(
             project: project, vaultDestination: vaultDestination, archiveDirectory: archiveDirectory,
             zip: zip, acknowledgeRisks: acknowledgeRisks)
+        if let cleanReport = report.cleanReport {
+            do { try await services.journal.append(cleanReport) } catch { lastError = error.localizedDescription }
+            diskRefreshToken += 1
+            await loadJournal()
+        }
         if report.trashedProject {
             projects.removeAll { $0.id == project.id }
         } else if report.freedBytes > 0 {

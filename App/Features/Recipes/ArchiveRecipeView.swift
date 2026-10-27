@@ -70,9 +70,12 @@ struct ArchiveRecipeView: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(report.steps.enumerated()), id: \.offset) { _, step in
                 HStack(alignment: .top) {
+                    let needsAck = report.requiresAcknowledgement && step.status == .failed
                     Image(systemName: step.status == .done ? "checkmark.circle.fill"
-                          : step.status == .skipped ? "minus.circle" : "xmark.octagon.fill")
-                        .foregroundStyle(step.status == .done ? .green : step.status == .skipped ? .secondary : .red)
+                          : step.status == .skipped ? "minus.circle"
+                          : needsAck ? "exclamationmark.triangle.fill" : "xmark.octagon.fill")
+                        .foregroundStyle(step.status == .done ? .green : step.status == .skipped ? .secondary
+                                         : needsAck ? .orange : .red)
                     VStack(alignment: .leading) {
                         Text(step.name).font(.callout.weight(.medium))
                         if !step.detail.isEmpty { Text(step.detail).font(.caption).foregroundStyle(.secondary) }

@@ -53,6 +53,7 @@ private final class FakeShell: ShellRunning, @unchecked Sendable {
     var log: Log
     var createZip = true
     var extractExit: Int32 = 0
+    var createContents = true
     init(log: Log) { self.log = log }
     func run(_ executable: String, arguments: [String], currentDirectory: URL?, input: Data?, timeout: Duration)
         async throws -> ShellResult {
@@ -62,6 +63,10 @@ private final class FakeShell: ShellRunning, @unchecked Sendable {
             return ShellResult(exitCode: 0, stdout: "", stderr: "")
         }
         log.add("ditto-extract")
+        if extractExit == 0, createContents, let out = arguments.last {
+            try FileManager.default.createDirectory(
+                at: URL(fileURLWithPath: out).appendingPathComponent("proj"), withIntermediateDirectories: true)
+        }
         return ShellResult(exitCode: extractExit, stdout: "", stderr: extractExit == 0 ? "" : "bad zip")
     }
 }
@@ -119,6 +124,74 @@ private func artifact(_ name: String, in dir: URL) -> Candidate {
                 archiveDirectory: dir.appendingPathComponent("arch"), zip: true)
             #expect(!report.succeeded && !report.trashedProject)
             #expect(!log.all.contains { $0.hasPrefix("trash") })
+        }
+    }
+
+    @Test func emptyExtractionNeverTrashes() async throws {
+        try await withTempDir { dir in
+            let log = Log()
+            let shell = FakeShell(log: log)
+            shell.createContents = false
+            let p = project(dir)
+            let report = await make(log, dir: dir, shell: shell, project: p).run(
+                project: p, vaultDestination: dir.appendingPathComponent("v"),
+                archiveDirectory: dir.appendingPathComponent("arch"), zip: true)
+            #expect(!report.succeeded && !report.trashedProject)
+            #expect(!log.all.contains { $0.hasPrefix("trash") })
+        }
+    }
+
+    @Test func archiveDirectoryInsideProjectFailsBeforeAnything() async throws {
+        try await withTempDir { dir in
+            let log = Log()
+            let p = project(dir)
+            let recipe = make(log, dir: dir, shell: FakeShell(log: log), project: p)
+            for archive in [p.url, p.url.appendingPathComponent("out/deep")] {
+                let report = await recipe.run(
+                    project: p, vaultDestination: dir.appendingPathComponent("v"), archiveDirectory: archive, zip: true)
+                #expect(!report.succeeded && !report.trashedProject)
+            }
+            #expect(log.all.isEmpty)
+        }
+    }
+
+    @Test func vaultDestinationInsideProjectFailsBeforeAnything() async throws {
+        try await withTempDir { dir in
+            let log = Log()
+            let p = project(dir)
+            let recipe = make(log, dir: dir, shell: FakeShell(log: log), project: p)
+            for vault in [p.url, p.url.appendingPathComponent("vault")] {
+                let report = await recipe.run(
+                    project: p, vaultDestination: vault, archiveDirectory: dir.appendingPathComponent("arch"), zip: true)
+                #expect(!report.succeeded && !report.trashedProject)
+            }
+            #expect(log.all.isEmpty)
+        }
+    }
+
+    @Test func symlinkIntoProjectIsDetected() async throws {
+        try await withTempDir { dir in
+            let log = Log()
+            let p = project(dir)
+            try FileManager.default.createDirectory(at: p.url, withIntermediateDirectories: true)
+            let link = dir.appendingPathComponent("link")
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: p.url)
+            let report = await make(log, dir: dir, shell: FakeShell(log: log), project: p).run(
+                project: p, vaultDestination: link.appendingPathComponent("v"),
+                archiveDirectory: dir.appendingPathComponent("arch"), zip: true)
+            #expect(!report.succeeded && log.all.isEmpty)
+        }
+    }
+
+    @Test func reportCarriesCleanReport() async throws {
+        try await withTempDir { dir in
+            let log = Log()
+            let p = project(dir)
+            let report = await make(log, dir: dir, shell: FakeShell(log: log), project: p).run(
+                project: p, vaultDestination: dir.appendingPathComponent("v"),
+                archiveDirectory: dir.appendingPathComponent("arch"), zip: true)
+            #expect(report.cleanReport?.mode == .permanent)
+            #expect(report.cleanReport?.freedBytes == report.freedBytes && report.freedBytes > 0)
         }
     }
 

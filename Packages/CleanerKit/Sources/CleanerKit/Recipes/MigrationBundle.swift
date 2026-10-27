@@ -117,7 +117,7 @@ public enum MigrationBundle {
             lines.append("if [ -e \(target) ]; then")
             lines.append("  printf 'skip (exists): %s\\n' \(shellQuote(repo.relativePath))")
             lines.append("else")
-            lines.append("  mkdir -p \"$(dirname \(target))\"")
+            lines.append("  mkdir -p -- \"$(dirname -- \(target))\"")
             var clone = "git clone -- \(shellQuote(remote)) \(target)"
             if let branch = repo.branch, !branch.isEmpty, !branch.hasPrefix("-") {
                 clone += " && git -C \(target) checkout \(shellQuote(branch)) --"
