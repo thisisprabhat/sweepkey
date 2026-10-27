@@ -10,3 +10,11 @@ jobs:
       - run: brew install xcodegen
       - run: make test
       - run: make build
+  lint:
+    runs-on: macos-26
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install swiftlint swiftformat
+      - run: swiftlint --quiet
+      - run: swiftformat --lint .

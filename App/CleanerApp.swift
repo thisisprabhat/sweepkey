@@ -23,6 +23,7 @@ final class CleanerAppDelegate: NSObject, NSApplicationDelegate {
 struct CleanerApp: App {
     @NSApplicationDelegateAdaptor(CleanerAppDelegate.self) private var delegate
     @State private var model = AppModel(services: .live)
+    @StateObject private var updater = UpdaterController()
 
     var body: some Scene {
         WindowGroup {
@@ -39,7 +40,10 @@ struct CleanerApp: App {
                 delegate.flushPending()
             }
         }
-        .commands { AppCommands(model: model) }
+        .commands {
+            AppCommands(model: model)
+            CommandGroup(after: .appInfo) { CheckForUpdatesView(updater: updater) }
+        }
 
         Settings {
             SettingsView()
