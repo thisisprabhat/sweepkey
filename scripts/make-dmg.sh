@@ -6,15 +6,17 @@
 # With no app path, builds a Release app locally (ad-hoc signed) into .build/xcode.
 # Env: DMG_SIGN_IDENTITY  codesign identity for the DMG itself (optional; skipped if unset)
 set -euo pipefail
-cd "$(dirname "$0")/.."
-
 APP="${1:-}"
 OUT="${2:-}"
+# Resolve caller-relative paths before changing directory.
+[ -z "$APP" ] || APP="$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")"
+[ -z "$OUT" ] || OUT="$(mkdir -p "$(dirname "$OUT")" && cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
+cd "$(dirname "$0")/.."
 
 if [ -z "$APP" ]; then
   xcodegen generate
   xcodebuild -project Cleaner.xcodeproj -scheme Cleaner -configuration Release \
-    -derivedDataPath .build/xcode CODE_SIGN_IDENTITY=- build >/dev/null
+    -derivedDataPath .build/xcode -quiet CODE_SIGN_IDENTITY=- build
   APP=".build/xcode/Build/Products/Release/Cleaner.app"
 fi
 [ -d "$APP" ] || { echo "error: $APP not found" >&2; exit 1; }
@@ -24,7 +26,7 @@ OUT="${OUT:-Cleaner-$VERSION.dmg}"
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
-cp -R "$APP" "$STAGE/Cleaner.app"
+ditto "$APP" "$STAGE/Cleaner.app"
 ln -s /Applications "$STAGE/Applications"
 
 mkdir -p "$(dirname "$OUT")"
