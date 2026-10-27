@@ -1,4 +1,3 @@
-import ServiceManagement
 import SwiftUI
 
 struct AutomationSettingsTab: View {
@@ -36,7 +35,7 @@ struct AutomationSettingsTab: View {
                 Toggle("Launch at login", isOn: $model.settings.launchAtLogin)
                     .onChange(of: model.settings.launchAtLogin) { _, enabled in
                         do {
-                            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                            try LoginItem.set(enabled: enabled)
                         } catch {
                             model.lastError = error.localizedDescription
                         }

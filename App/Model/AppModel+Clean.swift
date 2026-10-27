@@ -61,7 +61,7 @@ extension AppModel {
 
     /// Collects and exports (folder format) the secrets of the projects being cleaned.
     /// Returns an error description on failure, nil on success.
-    private func exportSecretsBeforeClean(for items: [Candidate]) async -> String? {
+    func exportSecretsBeforeClean(for items: [Candidate]) async -> String? {
         let itemIDs = Set(items.map(\.id))
         let affected = projects.filter { project in project.candidates.contains { itemIDs.contains($0.id) } }
             .map { $0.url.standardizedFileURL.resolvingSymlinksInPath() }
@@ -92,7 +92,7 @@ extension AppModel {
         cleanPhase = .idle
     }
 
-    private func removeCandidates(_ ids: Set<Candidate.ID>) {
+    func removeCandidates(_ ids: Set<Candidate.ID>) {
         projects = projects.compactMap { project in
             var copy = project
             copy.candidates.removeAll { ids.contains($0.id) }
