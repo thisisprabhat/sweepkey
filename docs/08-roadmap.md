@@ -23,3 +23,13 @@
 Rough mapping: phase 1 is Task 1; phase 2 is Tasks 2, 3, 6, 7, 8; phase 3 is Task 4; phase 4 is Task 5; phase 5 is Task 9; phase 6 is Task 10; phase 7 is Task 11.
 
 Each task owns a fixed set of paths, and the `Core/` contract is frozen from Wave A onward. See `plans/implementation-plan.md`.
+
+## v1.1 (moved out of v1)
+These spec features are not in v1. They were moved to v1.1 at the final v1 review:
+- **Quick Look** for items and vault files (and the Space shortcut for it).
+- **Vault diff view**: what changed since the last snapshot. (v1 keeps the last N versions in `.versions/`, without a diff UI.)
+- **Vault reveal and copy**: unmasking and copying secret values in the vault browser. (v1 shows masked previews only.)
+- **Custom-rule live preview**: showing what a custom rule would match while editing it.
+- **Rule import and export**.
+- **`~/Library/Caches` dev-tool items** in the Misc cache group.
+- **Automatic Homebrew cask update** on release. (v1's release workflow prints the cask version and sha256 for a manual update.)

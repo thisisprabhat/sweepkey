@@ -24,7 +24,7 @@ Animated progress ring with SF Symbols 7 symbol effects; a confirmation sheet su
 4. First scan
 
 ## Accessibility and polish
-Keyboard shortcuts (Cmd-R rescan, Cmd-Delete clean, Space for Quick Look), Reveal in Finder, Open in Terminal or editor, VoiceOver labels, Dynamic Type, system accent color, localizable String Catalog.
+Keyboard shortcuts (Cmd-R rescan, Cmd-Delete clean; Space for Quick Look is planned for v1.1), Reveal in Finder, Open in Terminal or editor, VoiceOver labels, Dynamic Type, system accent color, localizable String Catalog.
 
 ## Privacy
 Everything stays local; no telemetry; secrets leave the machine only when exported.

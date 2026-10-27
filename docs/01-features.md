@@ -26,7 +26,7 @@ Dry run first, git-tracked guard, path guards, active-project guard, vault-befor
 Permanent delete or Trash, progress, journal/history, undo via Put Back, auto rescan with free-space delta. See [03](03-safety.md).
 
 ## F. Secrets vault
-Git-aware detection, patterns, mirror layout, manifest, three export formats, versions, restore by path or git remote, vault browser. See [04](04-secrets-vault.md).
+Git-aware detection, patterns, mirror layout, manifest, three export formats, versions, restore by path or git remote, masked previews (reveal/copy, Quick Look and a diff view are v1.1). See [04](04-secrets-vault.md).
 
 ## G. Combined workflows
 Archive project, Free up X GB, New-Mac migration, pre-clean safety pass. See [05](05-automation-and-insights.md).

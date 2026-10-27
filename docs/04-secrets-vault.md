@@ -69,12 +69,12 @@ One entry per file; `formatVersion` is 1.
 Warn when the destination is a cloud-synced folder (iCloud Drive, Dropbox) in plain-folder mode.
 
 ## Incremental sync and versions
-Copy only files whose hash changed and keep the last N versions of each file (default 5). A diff view shows what changed since the last snapshot.
+Copy only files whose hash changed and keep the last N versions of each file (default 5) under `.versions/`. A diff view of what changed since the last snapshot is planned for v1.1 ([08](08-roadmap.md)).
 
 ## Restore
 - Restore a file to its original path.
 - Restore by git remote: after a fresh clone on a new Mac, match clones by remote URL and put secrets back (also handles moved folders).
-- Restores plan first (`RestoreAction` shows whether the destination exists and whether it is identical), then apply, with an overwrite option.
+- Restores plan first (`RestoreAction` shows whether the destination exists and whether it is identical), then apply, with an overwrite option. An original-path entry is only planned when its recorded source path ends with its vault path (minus the root folder); others are skipped with a warning. The app asks for confirmation and lists the destinations, and a file that is overwritten is moved to the Trash first.
 
 ## Vault browser
-Tree view with values masked by default, reveal/copy on demand, and Quick Look.
+v1 shows the vault's files with values masked. Reveal/copy on demand and Quick Look are planned for v1.1 ([08](08-roadmap.md)).
