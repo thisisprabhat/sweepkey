@@ -13,16 +13,18 @@ cleaner/
 │  └─ DesignSystem/                glass components, size formatters, risk badges
 ├─ Widgets/                        WidgetKit extension
 ├─ Packages/CleanerKit/            Swift package: all logic, no UI, unit-tested
-│  └─ Sources/CleanerKit/
-│     ├─ Core/       frozen contract: Models, Protocols, Settings
-│     ├─ Support/    Shell, SizeCalculator, GitClient, FileSystem helpers
-│     ├─ Scanning/   walker, ProjectDetector, FSEvents watcher
-│     ├─ Rules/      RuleSet, RuleMatcher, Resources/rules.json
-│     ├─ Cleaning/   SafetyGuard, executor (remove/trash), Journal
-│     ├─ Caches/     CacheProvider + one provider per tool
-│     ├─ Vault/      SecretDetector, ContentScanner, writers (folder/zip/encrypted image), Manifest, Restorer
-│     └─ Store/      persisted scan snapshots, clean records, vault snapshots
-│  └─ Sources/CleanerCLI/          `cleaner` executable (swift-argument-parser)
+│  ├─ Sources/CleanerKit/
+│  │  ├─ Core/       frozen contract: Models, Protocols, Settings
+│  │  ├─ Support/    Shell, SizeCalculator, GitClient, FileSystem helpers
+│  │  ├─ Scanning/   walker, ProjectDetector, FSEvents watcher
+│  │  ├─ Rules/      RuleSet, RuleMatcher
+│  │  ├─ Resources/  rules.json
+│  │  ├─ Cleaning/   SafetyGuard, CleanExecutor (remove/trash), Journal
+│  │  ├─ Caches/     CacheProvider + one provider per tool
+│  │  ├─ Vault/      SecretDetector, ContentScanner, writers, Manifest, Restorer
+│  │  └─ Store/      persisted scan snapshots, clean records, vault snapshots
+│  ├─ Sources/CleanerCLI/   `cleaner` executable (swift-argument-parser)
+│  └─ Tests/CleanerKitTests/
 └─ .github/workflows/
 ```
 Package: `swift-tools-version: 6.2`, `.macOS(.v26)`; tests with Swift Testing in `Tests/CleanerKitTests`. Bundle id `com.prabhatkumar.Cleaner`; Hardened Runtime on, App Sandbox off (Full Disk Access via onboarding).
@@ -31,7 +33,7 @@ Package: `swift-tools-version: 6.2`, `.macOS(.v26)`; tests with Swift Testing in
 - All logic lives in `CleanerKit`, shared by the app, CLI, widgets and intents, with one test suite.
 - The `Core/` contract is frozen after Task 1; later work extends via `extension`s in its own area.
 - `Rule` and cache providers both produce one `Candidate` type, so the UI, safety guard and journal treat every item alike. `CleanAction` is `.delete` or `.command(executable:arguments:)`.
-- `CacheProvider`: detect items, size them, clean with a mode; prefers the tool's own command and falls back to deleting files.
+- `CacheProvider: Sendable` has `var id: String { get }` and `func detect(_ context: CacheContext) async -> [CacheGroup]`. Providers only detect: they emit `Candidate`s whose `action` is `.delete` or `.command(executable:arguments:)`, preferring the tool's own command when its executable resolves. Cleaning is done by `CleanExecuting` (`CleanExecutor`), not by the provider.
 - Settings persist as JSON (`SettingsStore`, tolerant of missing keys) under `~/Library/Application Support/Cleaner` (`AppPaths`: settings, journal, scan cache); default vault dir `~/Documents/Cleaner Vault`. Vault passwords go in Keychain.
 - `GitClient` runs `/usr/bin/git` via `Process` and detects missing Command Line Tools without triggering the install prompt.
 - `ProcessShellRunner` resolves executables on an augmented PATH, drains stdout/stderr concurrently, and enforces timeouts.
