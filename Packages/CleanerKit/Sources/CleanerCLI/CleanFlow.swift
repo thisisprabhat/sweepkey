@@ -5,7 +5,7 @@ import Foundation
 /// Shared safety-check, plan, confirm and execute flow for `clean` and `caches clean`.
 func runCleanFlow(
     candidates: [Candidate], scanRoots: [URL], settings: CleanerSettings,
-    dryRun: Bool, trash: Bool, yes: Bool
+    dryRun: Bool, trash: Bool, yes: Bool, skipVault: Bool = false
 ) async throws {
     guard !candidates.isEmpty else {
         print("Nothing to clean.")
@@ -66,6 +66,31 @@ func runCleanFlow(
         guard confirm(prompt) else {
             print("Aborted.")
             throw ExitCode.failure
+        }
+    }
+
+    let vaultFirst = VaultBeforeClean.isRequired(settings: settings, dryRun: dryRun, skip: skipVault)
+    if settings.requireVaultBeforeClean && dryRun && !skipVault {
+        print("\nA real run exports the affected projects' secrets to the vault first (requireVaultBeforeClean).")
+    } else if settings.requireVaultBeforeClean && skipVault && !dryRun {
+        print("\nSkipping the vault export (--skip-vault).")
+    }
+    if vaultFirst {
+        do {
+            let outcome = try await VaultBeforeClean.run(
+                candidates: allowed, settings: settings, layoutRoots: scanRoots,
+                collect: { try await SecretFinder().findSecretsWithWarnings($0) },
+                exporter: VaultExporter())
+            for warning in outcome.warnings { printError("warning: \(warning)") }
+            if let result = outcome.result {
+                print("\nVault: \(outcome.files.count) secret file(s) saved to \(result.outputURL.path) "
+                    + "(\(result.copiedCount) copied, \(result.unchangedCount) unchanged).")
+            } else {
+                print("\nVault: no secret files in the affected projects.")
+            }
+        } catch {
+            throw CLIError("Clean aborted: the vault export failed (\(error.localizedDescription)). "
+                + "Nothing was deleted. Fix the vault destination, or pass --skip-vault to clean without it.")
         }
     }
 

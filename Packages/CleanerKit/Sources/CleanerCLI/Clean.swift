@@ -24,6 +24,10 @@ struct CleanCommand: AsyncParsableCommand {
     @Flag(name: .shortAndLong, help: "Skip the confirmation prompt.")
     var yes = false
 
+    @Flag(name: .customLong("skip-vault"),
+          help: "Clean without the vault export that the 'Require a vault export before cleaning' setting asks for.")
+    var skipVault = false
+
     func run() async throws {
         let settings = SettingsStore().load()
         let roots = try resolveRoots(paths, settings: settings)
@@ -35,6 +39,6 @@ struct CleanCommand: AsyncParsableCommand {
         }
         try await runCleanFlow(
             candidates: candidates, scanRoots: roots, settings: settings,
-            dryRun: dryRun, trash: trash, yes: yes)
+            dryRun: dryRun, trash: trash, yes: yes, skipVault: skipVault)
     }
 }

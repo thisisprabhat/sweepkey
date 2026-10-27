@@ -57,6 +57,12 @@ public enum VaultBeforeClean {
         public var warnings: [String]
     }
 
+    /// Whether a run must export the vault first: the setting is on, it is a real run, and the
+    /// user did not pass the explicit bypass (`cleaner clean --skip-vault`).
+    public static func isRequired(settings: CleanerSettings, dryRun: Bool, skip: Bool) -> Bool {
+        settings.requireVaultBeforeClean && !dryRun && !skip
+    }
+
     /// Distinct, resolved project roots of the candidates (global caches have none).
     public static func affectedProjects(_ candidates: [Candidate]) -> [URL] {
         AppLogic.resolve(candidates.filter { $0.kind == .projectArtifact }.compactMap(\.projectRoot))

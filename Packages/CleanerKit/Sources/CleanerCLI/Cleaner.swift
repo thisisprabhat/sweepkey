@@ -1,4 +1,5 @@
 import ArgumentParser
+import CleanerKit
 
 @main
 struct Cleaner: AsyncParsableCommand {
@@ -6,7 +7,7 @@ struct Cleaner: AsyncParsableCommand {
         commandName: "cleaner",
         abstract: "Clean regenerable developer artifacts and collect secrets into a vault.",
         discussion: "Exit codes: 0 ok, 1 error, 2 nothing to do.",
-        version: "0.1.0",
+        version: CleanerVersion.current,
         subcommands: [
             ScanCommand.self, CleanCommand.self, CachesCommand.self, VaultCommand.self, HistoryCommand.self,
         ]

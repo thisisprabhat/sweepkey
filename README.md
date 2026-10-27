@@ -54,14 +54,14 @@ Developer projects often live in places macOS protects (Desktop, Documents, Down
 ## CLI
 ```sh
 cleaner scan [paths...] [--json] [--stale-only] [--min-size 100MB]
-cleaner clean [paths...] [--dry-run] [--trash] [--stale-only] [--rule <id>]... [--yes]
+cleaner clean [paths...] [--dry-run] [--trash] [--stale-only] [--rule <id>]... [--yes] [--skip-vault]
 cleaner caches [--json]
 cleaner caches clean <group-id>... [--dry-run] [--yes]
 cleaner vault collect <paths...> --to <dest> [--format folder|zip|dmg] [--uncommitted] [--scan-contents]
 cleaner vault restore <vault> [--by-remote <searchRoot>...] [--overwrite] [--dry-run]
 cleaner history [--json]
 ```
-Paths default to your configured scan roots. `clean` prints the plan and asks `Proceed? [y/N]` unless `--yes` is given. Exit codes: `0` ok, `1` error, `2` nothing to do. Always try `--dry-run` first.
+Paths default to your configured scan roots. `clean` prints the plan and asks `Proceed? [y/N]` unless `--yes` is given. When **Require a vault export before cleaning** is on in Settings, a real `clean` first exports the affected projects' secrets (folder format, to the vault destination from Settings, with your collect options) and aborts without deleting anything if that export fails; `--skip-vault` bypasses this explicitly. Exit codes: `0` ok, `1` error, `2` nothing to do. Always try `--dry-run` first.
 
 ## Privacy
 No telemetry, no analytics, no accounts. Everything stays on your Mac, and vault contents leave the machine only if you export them. The only network use is the Sparkle update check, which fetches the appcast from GitHub Releases and is disabled in builds without an update key.

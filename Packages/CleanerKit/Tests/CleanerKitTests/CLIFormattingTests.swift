@@ -42,4 +42,20 @@ import Testing
         #expect(lines[2] == "a        1 KB")
         #expect(lines[3] == "longer  10 MB")
     }
+
+    /// One version source: CleanerVersion.current matches project.yml's MARKETING_VERSION, and
+    /// the line has the exact shape scripts/release.sh stamps.
+    @Test func versionHasOneSource() throws {
+        let repo = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let yml = try String(contentsOf: repo.appendingPathComponent("project.yml"), encoding: .utf8)
+        let line = try #require(yml.split(separator: "\n").first { $0.contains("MARKETING_VERSION:") })
+        let marketing = line.split(separator: ":").last?.trimmingCharacters(in: .whitespaces)
+        #expect(marketing == CleanerVersion.current)
+        let source = try String(
+            contentsOf: repo.appendingPathComponent("Packages/CleanerKit/Sources/CleanerKit/CLISupport/Version.swift"),
+            encoding: .utf8)
+        #expect(source.contains("public static let current = \"\(CleanerVersion.current)\""))
+    }
 }
