@@ -4,10 +4,10 @@ cask "sweepkey" do
   version "0.1.0"
   sha256 "REPLACE_WITH_DMG_SHA256"
 
-  url "https://github.com/waygosquad/sweepkey/releases/download/v#{version}/Sweepkey-#{version}.dmg"
+  url "https://github.com/thisisprabhat/sweepkey/releases/download/v#{version}/Sweepkey-#{version}.dmg"
   name "Sweepkey"
   desc "Developer-disk cleaner and secrets vault"
-  homepage "https://github.com/waygosquad/sweepkey"
+  homepage "https://github.com/thisisprabhat/sweepkey"
 
   depends_on macos: ">= :tahoe"
 

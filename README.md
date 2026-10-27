@@ -22,11 +22,11 @@ More in [docs/](docs/README.md).
 ## Install
 
 ### Download
-Get the notarized DMG from [Releases](https://github.com/waygosquad/sweepkey/releases) and drag Sweepkey to Applications. The release also contains `sweepkey-<version>-macos.zip` with just the CLI.
+Get the notarized DMG from [Releases](https://github.com/thisisprabhat/sweepkey/releases) and drag Sweepkey to Applications. The release also contains `sweepkey-<version>-macos.zip` with just the CLI.
 
 ### Homebrew
 ```sh
-brew install --cask waygosquad/tap/sweepkey    # app, plus the `sweepkey` CLI on your PATH
+brew install --cask thisisprabhat/tap/sweepkey    # app, plus the `sweepkey` CLI on your PATH
 ```
 (The cask template is in [Casks/sweepkey.rb](Casks/sweepkey.rb); publish it in your own tap.)
 

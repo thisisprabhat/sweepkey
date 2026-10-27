@@ -31,7 +31,7 @@ settings:
     SWEEPKEY_WIDGET_ENTITLEMENTS: ""
     # Set by the release workflow; empty disables the updater.
     SPARKLE_PUBLIC_KEY: ""
-    SPARKLE_FEED_URL: https://github.com/waygosquad/sweepkey/releases/latest/download/appcast.xml
+    SPARKLE_FEED_URL: https://github.com/thisisprabhat/sweepkey/releases/latest/download/appcast.xml
 targets:
   Sweepkey:
     type: application
