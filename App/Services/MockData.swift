@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 /// Realistic fake data for previews and the mock-backed app.

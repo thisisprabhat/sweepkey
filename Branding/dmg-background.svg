@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 400" width="660" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F7F8FF"/><stop offset="1" stop-color="#E6E9FA"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#3F49B4" stop-opacity=".16"/><stop offset="1" stop-color="#3F49B4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sweep" x1="236" y1="0" x2="420" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3EE6B5" stop-opacity="0"/><stop offset=".55" stop-color="#2FC79B"/><stop offset="1" stop-color="#3F49B4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="660" height="400" fill="url(#bg)"/>
+  <!-- faint sweep strokes across the backdrop, echoing the icon -->
+  <path d="M-20 380 Q260 300 690 120" fill="none" stroke="#3F49B4" stroke-opacity=".05" stroke-width="60" stroke-linecap="round"/>
+  <path d="M40 420 Q330 350 700 220" fill="none" stroke="#3EE6B5" stroke-opacity=".10" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- soft pedestals under the two Finder icons (centred at 170,200 and 490,200) -->
+  <ellipse cx="170" cy="200" rx="110" ry="96" fill="url(#glow)"/>
+  <ellipse cx="490" cy="200" rx="110" ry="96" fill="url(#glow)"/>
+
+  <!-- wordmark -->
+  <g transform="translate(330 58)" text-anchor="middle" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif">
+    <text y="0" font-size="30" font-weight="700" letter-spacing="-.5" fill="#161A3A">Sweep<tspan fill="#3F49B4">key</tspan></text>
+    <text y="24" font-size="12.5" font-weight="500" letter-spacing=".3" fill="#5B6290">Sweep the rebuildable. Keep the keys.</text>
+  </g>
+
+  <!-- drag arrow: a sweep that ends in an arrowhead -->
+  <path d="M244 214 Q330 168 410 200" fill="none" stroke="url(#sweep)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M398 186 L416 202 L393 209" fill="none" stroke="#3F49B4" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M330 140 l3.5 9 9 3.5 -9 3.5 -3.5 9 -3.5 -9 -9 -3.5 9 -3.5z" fill="#2FC79B"/>
+  <path d="M352 158 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#3EE6B5"/>
+
+  <!-- instruction -->
+  <text x="330" y="334" text-anchor="middle" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif" font-size="13" font-weight="500" fill="#5B6290">Drag Sweepkey into Applications to install</text>
+</svg>

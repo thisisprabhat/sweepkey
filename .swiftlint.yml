@@ -1,9 +1,9 @@
 included:
   - App
-  - Packages/CleanerKit/Sources
+  - Packages/SweepkeyKit/Sources
 excluded:
   - .build
-  - Packages/CleanerKit/.build
+  - Packages/SweepkeyKit/.build
 disabled_rules:
   - trailing_comma
   - todo

@@ -1,13 +1,15 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 /// Session overrides for the Vault screen. Every control shows the settings value until changed;
 /// changes apply to this session only and never replace the settings.
 struct VaultCollectOptionsView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         DisclosureGroup("Collect options") {
+            // Capped and scrollable so the findings below keep their room when this is open.
+            ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 URLListEditor(title: "Roots", panelMessage: "Choose folders to search for secrets",
                               urls: override(\.roots, default: model.settings.scanRoots))
@@ -28,6 +30,10 @@ struct VaultCollectOptionsView: View {
                 }
             }
             .padding(.top, 8)
+            .padding(.trailing, 12)
+            }
+            .frame(maxHeight: 280)
+            .scrollBounceBehavior(.basedOnSize)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
@@ -42,5 +48,5 @@ struct VaultCollectOptionsView: View {
 }
 
 #Preview {
-    VaultCollectOptionsView().environment(AppModel()).frame(width: 640)
+    VaultCollectOptionsView().environment(\.appModel, AppModel()).frame(width: 640)
 }

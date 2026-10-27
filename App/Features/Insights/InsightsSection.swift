@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 private enum TreemapMode: String, CaseIterable, Identifiable {
@@ -8,7 +8,7 @@ private enum TreemapMode: String, CaseIterable, Identifiable {
 
 /// Insight cards, the reclaimable-space treemap and the cleaning trend; shown on the Dashboard.
 struct InsightsSection: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var mode = TreemapMode.project
 
     var body: some View {
@@ -49,7 +49,9 @@ struct InsightsSection: View {
             if items.isEmpty {
                 Text("Nothing to show.").foregroundStyle(.secondary)
             } else {
-                TreemapView(items: items)
+                // Project tiles get the same right-click actions as the Projects list.
+                TreemapView(items: items, menu: mode == .project
+                    ? { AnyView(ProjectContextMenu(ids: [$0.id]).environment(\.appModel, model)) } : nil)
             }
 
             let trend = model.cleanTrend
@@ -62,5 +64,5 @@ struct InsightsSection: View {
 }
 
 #Preview {
-    InsightsSection().environment(AppModel()).padding().frame(width: 700)
+    InsightsSection().environment(\.appModel, AppModel()).padding().frame(width: 700)
 }

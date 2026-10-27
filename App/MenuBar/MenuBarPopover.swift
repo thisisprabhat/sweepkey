@@ -1,9 +1,9 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 /// Content of the menu bar extra (`.window` style).
 struct MenuBarPopover: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @Environment(\.openWindow) private var openWindow
     @State private var disk = DiskInfo.current()
     @State private var confirming = false
@@ -42,7 +42,7 @@ struct MenuBarPopover: View {
             }
             Divider()
             HStack {
-                Button("Open Cleaner") {
+                Button("Open Sweepkey") {
                     AppRouter.showApp()
                     openWindow(id: "main")
                 }

@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct CleanProgressView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     let progress: CleanProgress
 
     var body: some View {
@@ -28,6 +28,6 @@ struct CleanProgressView: View {
 
 #Preview {
     CleanProgressView(progress: CleanProgress(completed: 3, total: 8, currentTitle: "node_modules", freedBytes: 1_500_000_000))
-        .environment(AppModel())
+        .environment(\.appModel, AppModel())
         .frame(width: 560)
 }

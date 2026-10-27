@@ -7,7 +7,7 @@ final class FSEventsWatcher: @unchecked Sendable {
     static let latency: CFTimeInterval = 5
 
     private var stream: FSEventStreamRef?
-    private let queue = DispatchQueue(label: "com.prabhatkumar.Cleaner.fsevents")
+    private let queue = DispatchQueue(label: "com.prabhatkumar.Sweepkey.fsevents")
     private let onChange: @Sendable ([String]) -> Void
 
     init(onChange: @escaping @Sendable ([String]) -> Void) { self.onChange = onChange }

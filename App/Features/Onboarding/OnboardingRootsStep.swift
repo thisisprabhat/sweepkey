@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct OnboardingRootsStep: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 14) {
             Text("Where are your projects?").font(.title.weight(.semibold))
-            Text("Cleaner scans these folders for projects.").foregroundStyle(.secondary)
+            Text("Sweepkey scans these folders for projects.").foregroundStyle(.secondary)
             URLListEditor(title: "Scan roots", panelMessage: "Choose folders that contain your projects",
                           urls: $model.settings.scanRoots)
             Button("Suggest Common Folders") {
@@ -24,4 +24,4 @@ struct OnboardingRootsStep: View {
     }
 }
 
-#Preview { OnboardingRootsStep().environment(AppModel()).padding().frame(width: 520, height: 400) }
+#Preview { OnboardingRootsStep().environment(\.appModel, AppModel()).padding().frame(width: 520, height: 400) }

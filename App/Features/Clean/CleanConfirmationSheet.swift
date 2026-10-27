@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct CleanConfirmationSheet: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var acknowledged = false
 
     /// Danger items and items with a safety warning (e.g. the project is open) need acknowledgement.
@@ -103,7 +103,7 @@ struct CleanConfirmationSheet: View {
 
 #Preview {
     let model = AppModel()
-    CleanConfirmationSheet().environment(model).frame(width: 560)
+    CleanConfirmationSheet().environment(\.appModel, model).frame(width: 560)
         .task {
             model.projects = MockData.projects
             model.selection = Set(MockData.projects.prefix(4).flatMap(\.candidates).map(\.id))

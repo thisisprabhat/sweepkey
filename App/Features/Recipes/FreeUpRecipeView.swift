@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct FreeUpRecipeView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var targetGB = 10.0
     @State private var plan: [Candidate] = []
     @State private var isPlanning = false
@@ -57,5 +57,5 @@ struct FreeUpRecipeView: View {
 }
 
 #Preview {
-    FreeUpRecipeView().environment(AppModel()).padding().frame(width: 700)
+    FreeUpRecipeView().environment(\.appModel, AppModel()).padding().frame(width: 700)
 }

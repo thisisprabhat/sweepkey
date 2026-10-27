@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AutomationSettingsTab: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         @Bindable var model = model
@@ -46,4 +46,4 @@ struct AutomationSettingsTab: View {
     }
 }
 
-#Preview { AutomationSettingsTab().environment(AppModel()).frame(width: 600, height: 460) }
+#Preview { AutomationSettingsTab().environment(\.appModel, AppModel()).frame(width: 600, height: 460) }

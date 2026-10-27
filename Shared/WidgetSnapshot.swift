@@ -2,8 +2,8 @@ import Foundation
 
 /// Data the app shares with the widget through the App Group container.
 struct WidgetSnapshot: Codable, Equatable {
-    /// Info.plist key holding the resolved App Group id, `$(TeamIdentifierPrefix)com.prabhatkumar.Cleaner`.
-    static let appGroupInfoKey = "CleanerAppGroup"
+    /// Info.plist key holding the resolved App Group id, `$(TeamIdentifierPrefix)com.prabhatkumar.Sweepkey`.
+    static let appGroupInfoKey = "SweepkeyAppGroup"
     static let fileName = "widget-snapshot.json"
 
     /// The App Group id from Info.plist, or nil when the build has no team (ad-hoc builds leave

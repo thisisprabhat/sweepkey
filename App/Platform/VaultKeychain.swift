@@ -7,8 +7,8 @@ import Security
 /// available the item is gated by `.userPresence` (Touch ID). Ad-hoc signed builds lack the
 /// entitlement (-34018), so those fall back to the legacy login keychain without gating.
 enum VaultKeychain {
-    static let service = "com.prabhatkumar.Cleaner.vault"
-    private static let log = Logger(subsystem: "com.prabhatkumar.Cleaner", category: "keychain")
+    static let service = "com.prabhatkumar.Sweepkey.vault"
+    private static let log = Logger(subsystem: "com.prabhatkumar.Sweepkey", category: "keychain")
 
     enum Failure: Error, LocalizedError {
         case status(OSStatus)
@@ -102,7 +102,7 @@ enum VaultKeychain {
 
     /// Whether Touch ID gating works in this build. Probed once per session.
     static let gatingAvailable: Bool = {
-        let account = "cleaner.probe.\(UUID().uuidString)"
+        let account = "sweepkey.probe.\(UUID().uuidString)"
         defer { delete(account: account) }
         return (try? save(password: "probe", account: account)) ?? false
     }()

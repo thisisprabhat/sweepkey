@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct VaultSettingsTab: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         @Bindable var model = model
@@ -41,4 +41,4 @@ struct VaultSettingsTab: View {
     }
 }
 
-#Preview { VaultSettingsTab().environment(AppModel()).frame(width: 600, height: 460) }
+#Preview { VaultSettingsTab().environment(\.appModel, AppModel()).frame(width: 600, height: 460) }

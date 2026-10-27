@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 struct SafeCleanOutcome {
@@ -113,7 +113,7 @@ extension AppModel {
 
     /// Entry point for folder scans requested from outside the window. `/`, the home folder and
     /// system folders are refused. A folder outside the scan roots is scanned straight away from
-    /// the Services menu (the user picked it in Finder), but a `cleaner://` URL must be confirmed
+    /// the Services menu (the user picked it in Finder), but a `sweepkey://` URL must be confirmed
     /// in the app first.
     func requestPathScan(_ urls: [URL], fromURL: Bool) {
         let dirs = AppLogic.directories(from: urls)
@@ -217,5 +217,5 @@ extension AppModel {
 
 extension AppModel {
     /// One shared model for the window, menu bar, intents and URL handlers.
-    static let shared = AppModel(services: .live)
+    static let shared = AppModel(services: AppRuntime.demoMode ? .preview : .live)
 }

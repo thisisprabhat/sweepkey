@@ -11,7 +11,7 @@ Safety is non-negotiable.
 - **Active-project guard.** Warn when a project is open in Xcode, VS Code, Android Studio or a terminal, by checking working directories of running processes (`proc_pidinfo`). The confirmation sheet shows the reason and asks for an acknowledgement, as for Danger items.
 - **Pinned projects.** A pinned folder protects every project inside it (pin a monorepo and its packages are protected too).
 - **Unattended cleans are stricter.** The menu-bar quick clean, the low-space notification action, the scheduled auto-clean and the App Intents only clean Safe artifacts of stale projects, never global caches, and treat any warning (open project, high risk) as blocked.
-- **Vault-before-clean.** Optionally require a secrets snapshot of a project before its artifacts can be cleaned (`requireVaultBeforeClean`). The app and the CLI both honour it; `cleaner clean --skip-vault` bypasses it explicitly.
+- **Vault-before-clean.** Optionally require a secrets snapshot of a project before its artifacts can be cleaned (`requireVaultBeforeClean`). The app and the CLI both honour it; `sweepkey clean --skip-vault` bypasses it explicitly.
 - **Risk badges** Safe, Caution, Danger. Danger items need an extra confirmation.
 - **"How to regenerate"** command shown for every item (`npm install`, `flutter pub get`, `pod install`, ...) with a copy button.
 - **APFS-clone awareness.** Sizes are labelled "up to X freed" since cloned blocks may not be freed.

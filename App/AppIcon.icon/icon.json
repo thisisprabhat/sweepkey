@@ -1,0 +1,64 @@
+{
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "sparkles.svg",
+          "name": "sparkles"
+        },
+        {
+          "image-name": "sweep.svg",
+          "name": "sweep"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "keyhole.svg",
+          "name": "keyhole"
+        }
+      ],
+      "shadow": {
+        "kind": "layer-color",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  },
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.24706,0.28627,0.70588,1.00000",
+          "display-p3:0.07843,0.09020,0.22353,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.20000,0.23137,0.60000,1.00000",
+          "display-p3:0.05098,0.05882,0.16078,1.00000"
+        ]
+      }
+    }
+  ]
+}

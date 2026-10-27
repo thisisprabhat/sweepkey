@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct RestoreActionsTable: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         Table(model.restoreActions) {

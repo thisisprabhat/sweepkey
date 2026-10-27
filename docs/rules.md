@@ -1,7 +1,7 @@
 # Adding a cleaning rule
 
 Rules are data, not code. The bundled catalog is a JSON array at
-`Packages/CleanerKit/Sources/CleanerKit/Resources/rules.json`. A rule applies to a directory only when one of its `markers` exists in that directory, and it then offers `target` (relative to that directory) for cleaning.
+`Packages/SweepkeyKit/Sources/SweepkeyKit/Resources/rules.json`. A rule applies to a directory only when one of its `markers` exists in that directory, and it then offers `target` (relative to that directory) for cleaning.
 
 ## Schema
 

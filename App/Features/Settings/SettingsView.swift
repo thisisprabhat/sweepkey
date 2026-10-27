@@ -13,5 +13,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView().environment(AppModel())
+    SettingsView().environment(\.appModel, AppModel())
 }

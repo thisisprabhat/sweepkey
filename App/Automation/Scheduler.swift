@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 /// `NSBackgroundActivityScheduler` jobs for auto-scan, auto-clean and auto vault snapshot.
@@ -16,9 +16,9 @@ final class Scheduler {
     private var running: Set<String> = []
 
     private enum Job: String, CaseIterable {
-        case scan = "com.prabhatkumar.Cleaner.autoscan"
-        case clean = "com.prabhatkumar.Cleaner.autoclean"
-        case vault = "com.prabhatkumar.Cleaner.autovault"
+        case scan = "com.prabhatkumar.Sweepkey.autoscan"
+        case clean = "com.prabhatkumar.Sweepkey.autoclean"
+        case vault = "com.prabhatkumar.Sweepkey.autovault"
     }
 
     init(model: AppModel) { self.model = model }

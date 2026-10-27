@@ -7,8 +7,8 @@ import UserNotifications
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Notifier()
 
-    static let lowSpaceCategory = "CLEANER_LOW_SPACE"
-    static let cleanSafeAction = "CLEANER_CLEAN_SAFE"
+    static let lowSpaceCategory = "SWEEPKEY_LOW_SPACE"
+    static let cleanSafeAction = "SWEEPKEY_CLEAN_SAFE"
 
     private var configured = false
 

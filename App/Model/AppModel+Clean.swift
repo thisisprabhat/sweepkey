@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 extension AppModel {

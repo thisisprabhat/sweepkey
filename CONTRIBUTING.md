@@ -1,23 +1,23 @@
 # Contributing
 
-Thanks for helping. Cleaner deletes files, so changes are reviewed with safety first.
+Thanks for helping. Sweepkey deletes files, so changes are reviewed with safety first.
 
 ## Setup
 ```sh
 brew install xcodegen
-make test    # CleanerKit unit tests (Swift Testing)
+make test    # SweepkeyKit unit tests (Swift Testing)
 make build   # generate the Xcode project and build the app, ad-hoc signed
-make cli     # release build of the `cleaner` CLI
+make cli     # release build of the `sweepkey` CLI
 ```
 Requires macOS 26+ and Xcode 27 (Swift 6, strict concurrency).
 
-`make build` is ad-hoc signed and has no entitlements, so there is no App Group: the widget shows placeholder data and the app silently skips writing its snapshot. `make build-signed` (needs a development certificate and team) applies `Config/*.entitlements`; the App Group id is `$(TeamIdentifierPrefix)com.prabhatkumar.Cleaner` and reaches the code through the `CleanerAppGroup` Info.plist key. Release builds always use the entitlements (see `scripts/release.sh`).
+`make build` is ad-hoc signed and has no entitlements, so there is no App Group: the widget shows placeholder data and the app silently skips writing its snapshot. `make build-signed` (needs a development certificate and team) applies `Config/*.entitlements`; the App Group id is `$(TeamIdentifierPrefix)com.prabhatkumar.Sweepkey` and reaches the code through the `SweepkeyAppGroup` Info.plist key. Release builds always use the entitlements (see `scripts/release.sh`).
 
-Versions: the CLI version lives only in `CleanerVersion.current` (`Packages/CleanerKit/Sources/CleanerKit/CLISupport/Version.swift`) and must match `MARKETING_VERSION` in `project.yml` (a unit test checks this); the release script stamps both from the tag. Sparkle is pinned with `exactVersion` in `project.yml`, because the generated Xcode project (and its `Package.resolved`) is not committed. CleanerKit's own `Package.resolved` pins only its dependencies; Xcode adds the app's whole graph (Sparkle included) to it on a fresh resolve, so `make build`/`make build-signed` save and restore it around `xcodebuild`. Do not commit a Sparkle pin there.
+Versions: the CLI version lives only in `SweepkeyVersion.current` (`Packages/SweepkeyKit/Sources/SweepkeyKit/CLISupport/Version.swift`) and must match `MARKETING_VERSION` in `project.yml` (a unit test checks this); the release script stamps both from the tag. Sparkle is pinned with `exactVersion` in `project.yml`, because the generated Xcode project (and its `Package.resolved`) is not committed. SweepkeyKit's own `Package.resolved` pins only its dependencies; Xcode adds the app's whole graph (Sparkle included) to it on a fresh resolve, so `make build`/`make build-signed` save and restore it around `xcodebuild`. Do not commit a Sparkle pin there.
 
 ## Layout
-- `Packages/CleanerKit`: all logic (scanner, rules, safety guard, executor, vault) and the CLI target.
-- `App/`: SwiftUI app. `project.yml` is the XcodeGen spec; `Cleaner.xcodeproj` is generated and not committed.
+- `Packages/SweepkeyKit`: all logic (scanner, rules, safety guard, executor, vault) and the CLI target.
+- `App/`: SwiftUI app. `project.yml` is the XcodeGen spec; `Sweepkey.xcodeproj` is generated and not committed.
 
 ## Rules
 - Every filesystem-touching type takes injectable root/home URLs. Tests must use temp directories and never read or modify the real home directory.

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Four-step paged flow without TabView: Welcome, roots, Full Disk Access, first scan.
 struct OnboardingView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var step: Int
     private let lastStep = 3
 
@@ -54,5 +54,5 @@ struct OnboardingView: View {
 }
 
 #Preview {
-    OnboardingView().environment(AppModel())
+    OnboardingView().environment(\.appModel, AppModel())
 }

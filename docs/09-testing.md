@@ -2,7 +2,7 @@
 
 ← [Index](README.md)
 
-## Unit tests (Swift Testing, in CleanerKit)
+## Unit tests (Swift Testing, in SweepkeyKit)
 Tests build fixture trees in a temp folder and never touch the real `$HOME`. They cover:
 - one fake project per ecosystem; each rule matches only when its marker is present
 - a `build/` folder with no marker is never matched
@@ -19,7 +19,7 @@ Tests build fixture trees in a temp folder and never touch the real `$HOME`. The
 Inject a fake shell runner and assert the right native commands are issued (`docker system prune ...`, `xcrun simctl delete unavailable`).
 
 ## CLI smoke test
-Run `cleaner scan ~/Projects --dry-run --json` on a real machine and compare reported sizes with `du -sh` on a few targets.
+Run `sweepkey scan ~/Projects --dry-run --json` on a real machine and compare reported sizes with `du -sh` on a few targets.
 
 ## UI
 Walk through onboarding, scan, select, dry run, clean in Trash mode, then Put Back from History. Repeat for vault export in each format. XCUITest covers the main flow.
@@ -28,4 +28,4 @@ Walk through onboarding, scan, select, dry run, clean in Trash mode, then Put Ba
 `spctl -a -vv` and `stapler validate` on the notarized DMG; test a Sparkle update from the previous build.
 
 ## Commands
-`make test` runs `swift test` in `Packages/CleanerKit`.
+`make test` runs `swift test` in `Packages/SweepkeyKit`.

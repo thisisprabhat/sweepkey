@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 /// Never shows file contents: only the name and size.

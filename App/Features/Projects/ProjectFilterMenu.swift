@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct ProjectFilterMenu: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         @Bindable var model = model
@@ -34,5 +34,5 @@ struct ProjectFilterMenu: View {
 }
 
 #Preview {
-    ProjectFilterMenu().environment(AppModel()).padding()
+    ProjectFilterMenu().environment(\.appModel, AppModel()).padding()
 }

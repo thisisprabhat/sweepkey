@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 extension AppModel {
@@ -23,7 +23,7 @@ extension AppModel {
     }
 
     /// Launch sequence: journal, last cached scan, then an automatic scan when there is no cache
-    /// (or when the DEBUG `-CleanerAutoScan YES` argument is given).
+    /// (or when the DEBUG `-SweepkeyAutoScan YES` argument is given).
     func bootstrap() async {
         await loadJournal()
         let restored = await loadCachedScan()
@@ -129,6 +129,22 @@ extension AppModel {
     }
 
     func clearSelection() { selection = [] }
+
+    /// Selects every rebuildable item in one project and opens the clean confirmation.
+    func cleanProject(_ project: Project) {
+        selection = Set(project.candidates.map(\.id))
+        requestClean()
+    }
+
+    /// Rescans one project in place and merges the result, without a full scan.
+    func rescanProject(_ project: Project) {
+        guard !rescanningProjects.contains(project.id), !scanState.isScanning else { return }
+        rescanningProjects.insert(project.id)
+        Task {
+            await rescanMerging([project.url])
+            rescanningProjects.remove(project.id)
+        }
+    }
 
     // MARK: Filters
 

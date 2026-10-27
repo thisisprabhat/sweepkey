@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct GeneralSettingsTab: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         @Bindable var model = model
@@ -37,4 +37,4 @@ struct GeneralSettingsTab: View {
     }
 }
 
-#Preview { GeneralSettingsTab().environment(AppModel()).frame(width: 600, height: 460) }
+#Preview { GeneralSettingsTab().environment(\.appModel, AppModel()).frame(width: 600, height: 460) }

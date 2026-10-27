@@ -5,27 +5,27 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-(cd Packages/CleanerKit && swift build -c release --product cleaner)
-BIN=$(cd Packages/CleanerKit && swift build -c release --product cleaner --show-bin-path)
+(cd Packages/SweepkeyKit && swift build -c release --product sweepkey)
+BIN=$(cd Packages/SweepkeyKit && swift build -c release --product sweepkey --show-bin-path)
 
 WORK=$(mktemp -d)
-HIDDEN="$BIN/CleanerKit_CleanerKit.bundle.hidden"
+HIDDEN="$BIN/SweepkeyKit_SweepkeyKit.bundle.hidden"
 restore() {
-  [ -d "$HIDDEN" ] && mv "$HIDDEN" "$BIN/CleanerKit_CleanerKit.bundle"
+  [ -d "$HIDDEN" ] && mv "$HIDDEN" "$BIN/SweepkeyKit_SweepkeyKit.bundle"
   rm -rf "$WORK"
 }
 trap restore EXIT
 
 mkdir -p "$WORK/install" "$WORK/linkdir" "$WORK/fixture/proj/node_modules"
-ditto "$BIN/cleaner" "$WORK/install/cleaner"
-ditto "$BIN/CleanerKit_CleanerKit.bundle" "$WORK/install/CleanerKit_CleanerKit.bundle"
-ln -s "$WORK/install/cleaner" "$WORK/linkdir/cleaner"
+ditto "$BIN/sweepkey" "$WORK/install/sweepkey"
+ditto "$BIN/SweepkeyKit_SweepkeyKit.bundle" "$WORK/install/SweepkeyKit_SweepkeyKit.bundle"
+ln -s "$WORK/install/sweepkey" "$WORK/linkdir/sweepkey"
 echo '{"name":"x"}' > "$WORK/fixture/proj/package.json"
 head -c 2048 /dev/zero > "$WORK/fixture/proj/node_modules/blob"
 
 # Hide the build-directory bundle so SwiftPM's hard-coded fallback cannot mask a lookup failure.
-mv "$BIN/CleanerKit_CleanerKit.bundle" "$HIDDEN"
+mv "$BIN/SweepkeyKit_SweepkeyKit.bundle" "$HIDDEN"
 
-OUT=$("$WORK/linkdir/cleaner" scan "$WORK/fixture" --json)
+OUT=$("$WORK/linkdir/sweepkey" scan "$WORK/fixture" --json)
 echo "$OUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d,list) and len(d)>=1, d'
 echo "smoke-cli OK (via symlink)"

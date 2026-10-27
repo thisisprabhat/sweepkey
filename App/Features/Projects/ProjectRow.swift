@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 /// One row of the hierarchical projects table: a project, or one of its candidates.

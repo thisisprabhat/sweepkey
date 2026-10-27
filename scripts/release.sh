@@ -10,7 +10,7 @@
 # Environment:
 #   APPLE_TEAM_ID        required
 #   NOTARY_PROFILE       notarytool keychain profile, created beforehand with
-#                        `xcrun notarytool store-credentials` (default: cleaner-notary)
+#                        `xcrun notarytool store-credentials` (default: sweepkey-notary)
 #   KEYCHAIN             optional keychain holding the signing identity
 #   SIGN_IDENTITY        default: "Developer ID Application"
 #   SPARKLE_PUBLIC_KEY   EdDSA public key baked into the app (empty disables the updater)
@@ -25,7 +25,7 @@ BUILD="${2:-$(git rev-list --count HEAD)}"
 OUT="${3:-build/release}"
 [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]] || { echo "error: invalid version '$VERSION'" >&2; exit 1; }
 : "${APPLE_TEAM_ID:?APPLE_TEAM_ID is required}"
-PROFILE="${NOTARY_PROFILE:-cleaner-notary}"
+PROFILE="${NOTARY_PROFILE:-sweepkey-notary}"
 IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
 KC_ARGS=()
 NOTARY_KC=()
@@ -37,9 +37,9 @@ case "$FEED_URL" in
   *OWNER*) echo "error: SPARKLE_FEED_URL still contains the OWNER placeholder ($FEED_URL). Run scripts/configure-repo.sh <owner>." >&2; exit 1 ;;
 esac
 
-# The CLI version comes from one place, CleanerKit's CleanerVersion.current; stamp it for this
+# The CLI version comes from one place, SweepkeyKit's SweepkeyVersion.current; stamp it for this
 # release and put the file back afterwards.
-VERSION_FILE=Packages/CleanerKit/Sources/CleanerKit/CLISupport/Version.swift
+VERSION_FILE=Packages/SweepkeyKit/Sources/SweepkeyKit/CLISupport/Version.swift
 VERSION_BACKUP=$(mktemp)
 cp "$VERSION_FILE" "$VERSION_BACKUP"
 trap 'cp "$VERSION_BACKUP" "$VERSION_FILE"; rm -f "$VERSION_BACKUP"' EXIT
@@ -56,16 +56,16 @@ mkdir -p "$OUT/dist"
 
 # 1. CLI: build and smoke test the packaging (binary + resource bundle, via symlink).
 scripts/smoke-cli.sh
-CLI_BIN=$(cd Packages/CleanerKit && swift build -c release --product cleaner --show-bin-path)
+CLI_BIN=$(cd Packages/SweepkeyKit && swift build -c release --product sweepkey --show-bin-path)
 
 # 2. Archive with the release version.
 xcodegen generate
-xcodebuild -project Cleaner.xcodeproj -scheme Cleaner -configuration Release \
-  -archivePath "$OUT/Cleaner.xcarchive" \
+xcodebuild -project Sweepkey.xcodeproj -scheme Sweepkey -configuration Release \
+  -archivePath "$OUT/Sweepkey.xcarchive" \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
   SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-}" SPARKLE_FEED_URL="$FEED_URL" \
-  CLEANER_APP_ENTITLEMENTS=Config/Cleaner.entitlements \
-  CLEANER_WIDGET_ENTITLEMENTS=Config/CleanerWidgets.entitlements \
+  SWEEPKEY_APP_ENTITLEMENTS=Config/Sweepkey.entitlements \
+  SWEEPKEY_WIDGET_ENTITLEMENTS=Config/SweepkeyWidgets.entitlements \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="$IDENTITY" \
   OTHER_CODE_SIGN_FLAGS="--timestamp ${KEYCHAIN:+--keychain $KEYCHAIN}" \
@@ -82,13 +82,13 @@ cat > "$OUT/ExportOptions.plist" <<PLIST
 <key>signingCertificate</key><string>$IDENTITY</string>
 </dict></plist>
 PLIST
-xcodebuild -exportArchive -archivePath "$OUT/Cleaner.xcarchive" \
+xcodebuild -exportArchive -archivePath "$OUT/Sweepkey.xcarchive" \
   -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export"
-APP="$OUT/export/Cleaner.app"
+APP="$OUT/export/Sweepkey.app"
 
 # 4. Embed the CLI and its resource bundle (both next to each other so symlinks resolve).
-ditto "$CLI_BIN/cleaner" "$APP/Contents/Resources/cleaner"
-ditto "$CLI_BIN/CleanerKit_CleanerKit.bundle" "$APP/Contents/Resources/CleanerKit_CleanerKit.bundle"
+ditto "$CLI_BIN/sweepkey" "$APP/Contents/Resources/sweepkey"
+ditto "$CLI_BIN/SweepkeyKit_SweepkeyKit.bundle" "$APP/Contents/Resources/SweepkeyKit_SweepkeyKit.bundle"
 
 # 5. Sign inside-out: Sparkle helpers, framework, CLI + bundle, then the app.
 SPK="$APP/Contents/Frameworks/Sparkle.framework"
@@ -97,8 +97,8 @@ if [ -d "$SPK" ]; then
   while IFS= read -r -d '' x; do sign "$x"; done < <(find "$SPK" -name Autoupdate -type f -print0)
   sign "$SPK"
 fi
-sign "$APP/Contents/Resources/CleanerKit_CleanerKit.bundle"
-sign "$APP/Contents/Resources/cleaner"
+sign "$APP/Contents/Resources/SweepkeyKit_SweepkeyKit.bundle"
+sign "$APP/Contents/Resources/sweepkey"
 ENT="$OUT/app.entitlements"
 if codesign -d --entitlements :- "$APP" > "$ENT" 2>/dev/null && [ -s "$ENT" ]; then
   sign --entitlements "$ENT" "$APP"
@@ -108,13 +108,13 @@ fi
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 # 6. Notarize and staple the app, then assess it.
-ditto -c -k --keepParent "$APP" "$OUT/Cleaner-notarize.zip"
-notarize "$OUT/Cleaner-notarize.zip"
+ditto -c -k --keepParent "$APP" "$OUT/Sweepkey-notarize.zip"
+notarize "$OUT/Sweepkey-notarize.zip"
 xcrun stapler staple "$APP"
 spctl -a -t exec -vv "$APP"
 
 # 7. DMG: sign, notarize, staple.
-DMG="$OUT/dist/Cleaner-$VERSION.dmg"
+DMG="$OUT/dist/Sweepkey-$VERSION.dmg"
 DMG_SIGN_IDENTITY="$IDENTITY" scripts/make-dmg.sh "$APP" "$DMG"
 notarize "$DMG"
 xcrun stapler staple "$DMG"
@@ -123,8 +123,8 @@ xcrun stapler validate "$DMG"
 # 8. Standalone CLI zip: binary + resource bundle side by side.
 ZIPDIR="$OUT/cli"
 mkdir -p "$ZIPDIR"
-ditto "$APP/Contents/Resources/cleaner" "$ZIPDIR/cleaner"
-ditto "$APP/Contents/Resources/CleanerKit_CleanerKit.bundle" "$ZIPDIR/CleanerKit_CleanerKit.bundle"
-ditto -c -k "$ZIPDIR" "$OUT/dist/cleaner-$VERSION-macos.zip"
+ditto "$APP/Contents/Resources/sweepkey" "$ZIPDIR/sweepkey"
+ditto "$APP/Contents/Resources/SweepkeyKit_SweepkeyKit.bundle" "$ZIPDIR/SweepkeyKit_SweepkeyKit.bundle"
+ditto -c -k "$ZIPDIR" "$OUT/dist/sweepkey-$VERSION-macos.zip"
 
 echo "Artifacts in $OUT/dist"

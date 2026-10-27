@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Hosts confirm -> progress -> result inside one sheet.
 struct CleanFlowSheet: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         Group {

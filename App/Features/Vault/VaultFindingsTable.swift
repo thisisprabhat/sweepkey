@@ -1,12 +1,19 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct VaultFindingsTable: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var previewID: String?
 
     private var rows: [FindingRow] { FindingRow.grouped(model.findings) }
     private var previewed: SecretFile? { model.findings.first { $0.id == previewID } }
+
+    private func ecosystem(of row: FindingRow) -> String? {
+        guard let root = row.files.first?.git?.repositoryRoot.standardizedFileURL else { return nil }
+        let project = model.projects.first { $0.url.standardizedFileURL == root }
+            ?? model.projects.first { $0.url.standardizedFileURL.path.hasPrefix(root.path + "/") }
+        return project?.ecosystemIDs.first
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,10 +28,17 @@ struct VaultFindingsTable: View {
                 }
                 .width(28)
                 TableColumn("File") { row in
-                    HStack(spacing: 6) {
-                        Image(systemName: row.file == nil ? "folder.fill" : "key.fill").foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        if let file = row.file {
+                            LogoIcon(logo: file.icon.logo, symbolName: file.icon.symbol, size: 20)
+                        } else {
+                            // The project's framework logo, from the last scan; a folder when unknown.
+                            LogoIcon(logo: ecosystem(of: row), symbolName: "folder.fill", size: 22)
+                        }
                         Text(row.name).fontWeight(row.file == nil ? .medium : .regular)
+                            .lineLimit(1).truncationMode(.middle)
                     }
+                    .help(row.file?.sourceURL.abbreviatingHome ?? row.name)
                 }
                 TableColumn("Reason") { row in
                     if let reason = row.file?.reason {
@@ -50,6 +64,6 @@ struct VaultFindingsTable: View {
 
 #Preview {
     let model = AppModel()
-    VaultFindingsTable().environment(model).frame(width: 760, height: 460)
+    VaultFindingsTable().environment(\.appModel, model).frame(width: 760, height: 460)
         .task { await model.findSecrets() }
 }

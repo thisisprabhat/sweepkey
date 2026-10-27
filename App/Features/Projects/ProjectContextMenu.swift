@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ProjectContextMenu: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     let ids: Set<String>
 
     var body: some View {
@@ -19,6 +19,11 @@ struct ProjectContextMenu: View {
                 Button("Copy Path", systemImage: "doc.on.doc") { Panels.copy(url.path) }
             }
             if let project {
+                Divider()
+                Button("Clean This Project…", systemImage: "sparkles") { model.cleanProject(project) }
+                    .disabled(project.candidates.isEmpty)
+                Button("Rescan This Project", systemImage: "arrow.clockwise") { model.rescanProject(project) }
+                    .disabled(model.scanState.isScanning || model.rescanningProjects.contains(project.id))
                 Divider()
                 Button(model.isPinned(project) ? "Unpin Project" : "Pin Project",
                        systemImage: model.isPinned(project) ? "pin.slash" : "pin") {

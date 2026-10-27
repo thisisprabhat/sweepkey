@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct CacheGroupRow: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     let group: CacheGroup
     @State private var expanded = false
 
@@ -14,7 +14,7 @@ struct CacheGroupRow: View {
         } label: {
             HStack(spacing: 10) {
                 Toggle("Select \(group.title)", isOn: groupBinding).labelsHidden()
-                Image(systemName: group.symbolName).foregroundStyle(.secondary).frame(width: 22)
+                LogoIcon(logo: group.logo, symbolName: group.symbolName, size: 24)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(group.title).fontWeight(.medium)
                     if let detail = group.detail {
@@ -35,7 +35,7 @@ struct CacheGroupRow: View {
 }
 
 struct CacheItemRow: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     let candidate: Candidate
 
     var body: some View {
@@ -67,5 +67,5 @@ struct CacheItemRow: View {
 
 #Preview {
     List { CacheGroupRow(group: MockData.cacheGroups[2]) }
-        .environment(AppModel()).frame(width: 640, height: 240)
+        .environment(\.appModel, AppModel()).frame(width: 640, height: 240)
 }

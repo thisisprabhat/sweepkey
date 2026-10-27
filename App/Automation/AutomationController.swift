@@ -1,5 +1,5 @@
 import AppKit
-import CleanerKit
+import SweepkeyKit
 import Foundation
 import Observation
 

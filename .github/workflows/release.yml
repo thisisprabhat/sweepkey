@@ -40,14 +40,14 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           set -euo pipefail
-          xcrun notarytool store-credentials cleaner-notary --keychain "$KEYCHAIN" \
+          xcrun notarytool store-credentials sweepkey-notary --keychain "$KEYCHAIN" \
             --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" >/dev/null
 
       - name: Build, sign, notarize and package (scripts/release.sh)
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
-          NOTARY_PROFILE: cleaner-notary
+          NOTARY_PROFILE: sweepkey-notary
         run: |
           set -euo pipefail
           scripts/release.sh "${GITHUB_REF_NAME#v}" "$GITHUB_RUN_NUMBER" build/release
@@ -67,7 +67,7 @@ jobs:
             mkdir -p "$RUNNER_TEMP/sparkle" && tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
             TOOL="$RUNNER_TEMP/sparkle/bin/generate_appcast"
           fi
-          mkdir -p appcast-in && cp "build/release/dist/Cleaner-$VERSION.dmg" appcast-in/
+          mkdir -p appcast-in && cp "build/release/dist/Sweepkey-$VERSION.dmg" appcast-in/
           printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOL" --ed-key-file - \
             --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/" \
             -o build/release/dist/appcast.xml appcast-in
@@ -79,14 +79,14 @@ jobs:
           set -euo pipefail
           VERSION=${GITHUB_REF_NAME#v}
           gh release create "$GITHUB_REF_NAME" --generate-notes \
-            "build/release/dist/Cleaner-$VERSION.dmg" build/release/dist/appcast.xml "build/release/dist/cleaner-$VERSION-macos.zip"
+            "build/release/dist/Sweepkey-$VERSION.dmg" build/release/dist/appcast.xml "build/release/dist/sweepkey-$VERSION-macos.zip"
 
       - name: Print cask sha256
         run: |
           set -euo pipefail
           VERSION=${GITHUB_REF_NAME#v}
           echo "Cask version: $VERSION"
-          echo "Cask sha256:  $(shasum -a 256 "build/release/dist/Cleaner-$VERSION.dmg" | cut -d' ' -f1)"
+          echo "Cask sha256:  $(shasum -a 256 "build/release/dist/Sweepkey-$VERSION.dmg" | cut -d' ' -f1)"
 
       - name: Delete temporary keychain
         if: always()

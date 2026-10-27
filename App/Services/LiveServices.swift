@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 /// Secret finder that also reports repositories whose git queries failed.
@@ -32,7 +32,7 @@ extension AppServices {
             activeDirectories: { await ActiveProjectDetector.currentWorkingDirectories() })
     }
 
-    /// Real CleanerKit services. `#Preview` keeps using `.preview`.
+    /// Real SweepkeyKit services. `#Preview` keeps using `.preview`.
     static let live = AppServices(
         scanner: ProjectScanner(),
         caches: GlobalCacheScanner(),

@@ -1,9 +1,10 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct VaultCollectView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var showExport = false
+    @State private var showAllWarnings = false
 
     var body: some View {
         @Bindable var model = model
@@ -15,7 +16,18 @@ struct VaultCollectView: View {
                     Label("Some files need attention: repositories git could not query were collected by pattern only, and files over the size limit were skipped.",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.callout.weight(.medium))
-                    ForEach(model.vaultWarnings, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+                    // A long list would push the findings off screen: show a few, the rest on request.
+                    let shown = showAllWarnings ? model.vaultWarnings : Array(model.vaultWarnings.prefix(3))
+                    ForEach(shown, id: \.self) {
+                        Text($0).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            .help($0)
+                    }
+                    if model.vaultWarnings.count > 3 {
+                        Button(showAllWarnings ? "Show fewer" : "Show all \(model.vaultWarnings.count)") {
+                            withAnimation(.smooth) { showAllWarnings.toggle() }
+                        }
+                        .buttonStyle(.link).font(.caption)
+                    }
                 }
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -58,9 +70,15 @@ struct VaultCollectView: View {
         .sheet(isPresented: $showExport) {
             VaultExportSheet()
         }
+        .task {
+            guard AppRuntime.demoPresent == "vaultExport" else { return }
+            await model.findSecrets()
+            model.exportState = .idle
+            showExport = true
+        }
     }
 }
 
 #Preview {
-    VaultCollectView().environment(AppModel()).frame(width: 860, height: 600)
+    VaultCollectView().environment(\.appModel, AppModel()).frame(width: 860, height: 600)
 }

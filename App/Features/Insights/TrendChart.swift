@@ -1,5 +1,5 @@
 import Charts
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct TrendChart: View {

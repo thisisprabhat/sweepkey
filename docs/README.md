@@ -1,6 +1,6 @@
-# Cleaner: developer documentation
+# Sweepkey: developer documentation
 
-Cleaner is a native macOS 26+ SwiftUI app that (1) safely reclaims disk space from regenerable developer junk and (2) collects non-regenerable, non-git files (secrets) into a vault before anything is deleted or archived.
+Sweepkey is a native macOS 26+ SwiftUI app that (1) safely reclaims disk space from regenerable developer junk and (2) collects non-regenerable, non-git files (secrets) into a vault before anything is deleted or archived.
 
 ## Index
 
@@ -21,7 +21,7 @@ The original spec is `plans/feature-plan.md`; the task breakdown is `plans/imple
 
 ## Context
 
-Dev projects pile up regenerable junk (`node_modules`, `.venv`, `build/`, `target/`, DerivedData, Gradle/npm/pub caches) and trigger low-storage warnings. Cleaner reclaims that space safely. Before anything is deleted or a project is archived, it collects the files that cannot be regenerated and are not in git (`.env`, `.jks`, keystores, `key.properties`, `google-services.json`, `pubspec.yaml`, ...) into a mirror of the original tree (`<root>/dir1/dir1/file.jks`).
+Dev projects pile up regenerable junk (`node_modules`, `.venv`, `build/`, `target/`, DerivedData, Gradle/npm/pub caches) and trigger low-storage warnings. Sweepkey reclaims that space safely. Before anything is deleted or a project is archived, it collects the files that cannot be regenerated and are not in git (`.env`, `.jks`, keystores, `key.properties`, `google-services.json`, `pubspec.yaml`, ...) into a mirror of the original tree (`<root>/dir1/dir1/file.jks`).
 
 ## Decisions
 

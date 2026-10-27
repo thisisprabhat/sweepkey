@@ -31,8 +31,8 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 struct RootView: View {
-    @Environment(AppModel.self) private var model
-    @State private var selection: SidebarItem? = .dashboard
+    @Environment(\.appModel) private var model
+    @State private var selection: SidebarItem? = AppRuntime.startTab.flatMap { tab in SidebarItem.allCases.first { "\($0)" == tab } } ?? .dashboard
 
     var body: some View {
         @Bindable var model = model
@@ -75,10 +75,13 @@ struct RootView: View {
             }
             Button("Cancel", role: .cancel) { model.pendingPathScan = [] }
         } message: {
-            Text("A link asked Cleaner to scan \(model.pendingPathScan.map(\.abbreviatingHome).joined(separator: ", ")), which is not one of your scan roots. Nothing is cleaned without your confirmation.")
+            Text("A link asked Sweepkey to scan \(model.pendingPathScan.map(\.abbreviatingHome).joined(separator: ", ")), which is not one of your scan roots. Nothing is cleaned without your confirmation.")
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { handleDrop($0) }
-        .task { await model.bootstrap() }
+        .task {
+            await model.bootstrap()
+            await model.presentDemoScreen()
+        }
     }
 }
 
@@ -97,5 +100,5 @@ extension RootView {
 }
 
 #Preview {
-    RootView().environment(AppModel())
+    RootView().environment(\.appModel, AppModel())
 }

@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct VaultExportSheet: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var format = VaultExportFormat.folder
     @State private var destination: URL?
@@ -101,12 +101,12 @@ struct VaultExportSheet: View {
     private func chooseDestination() -> URL? {
         switch format {
         case .folder: Panels.chooseFolders(message: "Choose where to create the vault folder", allowsMultiple: false).first
-        case .zip: Panels.saveLocation(name: "Cleaner Vault.zip", message: "Save the vault archive")
-        case .encryptedImage: Panels.saveLocation(name: "Cleaner Vault.dmg", message: "Save the encrypted vault image")
+        case .zip: Panels.saveLocation(name: "Sweepkey Vault.zip", message: "Save the vault archive")
+        case .encryptedImage: Panels.saveLocation(name: "Sweepkey Vault.dmg", message: "Save the encrypted vault image")
         }
     }
 }
 
 #Preview {
-    VaultExportSheet().environment(AppModel())
+    VaultExportSheet().environment(\.appModel, AppModel())
 }

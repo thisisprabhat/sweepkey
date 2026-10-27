@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct ProjectInspector: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     private var candidate: Candidate? {
         guard let id = model.inspectedID else { return nil }
@@ -24,10 +24,29 @@ struct ProjectInspector: View {
                 if let project { projectSection(project) }
             }
             .formStyle(.grouped)
+            .safeAreaInset(edge: .bottom) {
+                if let project { projectActions(project) }
+            }
             .task(id: model.inspectedID) {
                 if let candidate { await model.evaluateVerdicts(for: [candidate]) }
             }
         }
+    }
+
+    /// The two things you do with a project: clean all of it, or refresh it after changes.
+    private func projectActions(_ project: Project) -> some View {
+        HStack {
+            Button("Rescan", systemImage: "arrow.clockwise") { model.rescanProject(project) }
+                .buttonStyle(.glass)
+                .disabled(model.scanState.isScanning || model.rescanningProjects.contains(project.id))
+            Spacer()
+            Button("Clean Project…", systemImage: "sparkles") { model.cleanProject(project) }
+                .buttonStyle(.glassProminent)
+                .disabled(project.candidates.isEmpty)
+                .help("Select all of \(project.name)'s rebuildable folders and review them before cleaning")
+        }
+        .padding(12)
+        .background(.bar)
     }
 
     @ViewBuilder private func candidateSection(_ candidate: Candidate) -> some View {
@@ -106,5 +125,5 @@ struct VerdictRow: View {
 
 #Preview {
     let model = AppModel()
-    ProjectInspector().environment(model).frame(width: 320, height: 600)
+    ProjectInspector().environment(\.appModel, model).frame(width: 320, height: 600)
 }

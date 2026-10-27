@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct CachesView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         Group {
@@ -42,6 +42,6 @@ struct CachesView: View {
 
 #Preview {
     let model = AppModel()
-    CachesView().environment(model).frame(width: 760, height: 600)
+    CachesView().environment(\.appModel, model).frame(width: 760, height: 600)
         .task { model.cacheGroups = MockData.cacheGroups }
 }

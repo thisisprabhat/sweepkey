@@ -11,7 +11,7 @@ labels: bug
 **Steps to reproduce**
 
 **Environment**
-- Cleaner version:
+- Sweepkey version:
 - macOS version:
 - App or CLI:
 

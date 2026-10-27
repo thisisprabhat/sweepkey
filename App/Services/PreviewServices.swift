@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 // In-app mock implementations of the Core protocols. They return realistic fake data
@@ -10,7 +10,7 @@ extension AppServices {
         cleaner: MockCleaner(), journal: MockJournal(), secrets: MockSecretFinder(),
         vaultExporter: MockVaultExporter(), vaultRestorer: MockVaultRestorer(),
         settingsStore: SettingsStore(
-            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("cleaner-preview-settings.json")),
+            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("sweepkey-preview-settings.json")),
         ruleCatalog: MockRuleCatalog())
 }
 

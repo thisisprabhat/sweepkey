@@ -8,7 +8,7 @@ struct OnboardingAccessStep: View {
         VStack(spacing: 14) {
             Image(systemName: "lock.open.display").font(.system(size: 48)).foregroundStyle(.tint)
             Text("Full Disk Access").font(.title.weight(.semibold))
-            Text("To scan caches and protected folders, Cleaner needs Full Disk Access. Open System Settings, enable Cleaner under Privacy & Security, then come back and check again.")
+            Text("To scan caches and protected folders, Sweepkey needs Full Disk Access. Open System Settings, enable Sweepkey under Privacy & Security, then come back and check again.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary)
             HStack {
                 Button("Open System Settings", systemImage: "gearshape") {

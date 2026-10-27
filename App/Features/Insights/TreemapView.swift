@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct TreemapItem: Identifiable, Hashable {
@@ -7,9 +7,11 @@ struct TreemapItem: Identifiable, Hashable {
     let bytes: Int64
 }
 
-/// Squarified treemap drawn with `Canvas`; layout math lives in `CleanerKit.Treemap`.
+/// Squarified treemap drawn with `Canvas`; layout math lives in `SweepkeyKit.Treemap`.
 struct TreemapView: View {
     let items: [TreemapItem]
+    /// When set, right-clicking a tile shows this menu for it (e.g. project actions).
+    var menu: ((TreemapItem) -> AnyView)?
     @State private var hovered: Int?
     @State private var hoverPoint: CGPoint = .zero
 
@@ -30,8 +32,11 @@ struct TreemapView: View {
                     let path = Path(roundedRect: inset, cornerRadius: 4)
                     context.fill(path, with: .color(color(i).opacity(hovered == i ? 1 : 0.85)))
                     if inset.width > 60, inset.height > 26 {
+                        // Clip so a long name never spills into the neighbouring tile.
+                        var tile = context
+                        tile.clip(to: path)
                         let text = Text(items[i].label).font(.caption.weight(.medium)).foregroundColor(.black.opacity(0.8))
-                        context.draw(text, at: CGPoint(x: inset.minX + 6, y: inset.minY + 6), anchor: .topLeading)
+                        tile.draw(text, at: CGPoint(x: inset.minX + 6, y: inset.minY + 6), anchor: .topLeading)
                     }
                 }
             }
@@ -43,6 +48,9 @@ struct TreemapView: View {
                 case .ended:
                     hovered = nil
                 }
+            }
+            .contextMenu {
+                if let menu, let hovered, items.indices.contains(hovered) { menu(items[hovered]) }
             }
             .overlay(alignment: .topLeading) {
                 if let hovered, items.indices.contains(hovered) {

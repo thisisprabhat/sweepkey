@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct HistoryDetailView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     let report: CleanReport
 
     private var canPutBack: Bool {
@@ -30,13 +30,19 @@ struct HistoryDetailView: View {
             List(report.items, id: \.candidate.id) { item in
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(item.candidate.title)
+                        Text(item.candidate.title).lineLimit(1).truncationMode(.middle)
                         Text(item.candidate.url.abbreviatingHome).font(.caption).foregroundStyle(.secondary)
                             .lineLimit(1).truncationMode(.middle)
                     }
-                    Spacer()
+                    .help(item.candidate.title)
+                    Spacer(minLength: 8)
                     Text(item.status.rawValue.capitalized).font(.caption).foregroundStyle(.secondary)
-                    SizeText(bytes: item.freedBytes)
+                    if AppLogic.isApproximate(item) {
+                        Text("Not measured").font(.caption).foregroundStyle(.secondary)
+                            .help("This item was removed by a tool, so its exact size could not be measured")
+                    } else {
+                        SizeText(bytes: item.freedBytes)
+                    }
                 }
             }
         }
@@ -51,5 +57,5 @@ struct HistoryDetailView: View {
         items: MockData.projects[0].candidates.map {
             CleanItemResult(candidate: $0, status: .cleaned, freedBytes: $0.sizeBytes, trashURL: URL(fileURLWithPath: "/tmp/x"))
         }))
-    .environment(model).frame(width: 480, height: 400)
+    .environment(\.appModel, model).frame(width: 480, height: 400)
 }

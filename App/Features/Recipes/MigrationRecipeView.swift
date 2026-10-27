@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct MigrationRecipeView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var destination: URL?
     @State private var running = false
     @State private var result: MigrationResult?
@@ -47,7 +47,7 @@ struct MigrationRecipeView: View {
         result = nil
         errorMessage = nil
         Task {
-            do { result = try await model.exportMigration(to: destination.appendingPathComponent("Cleaner Migration", isDirectory: true)) }
+            do { result = try await model.exportMigration(to: destination.appendingPathComponent("Sweepkey Migration", isDirectory: true)) }
             catch { errorMessage = error.localizedDescription }
             running = false
         }
@@ -55,5 +55,5 @@ struct MigrationRecipeView: View {
 }
 
 #Preview {
-    MigrationRecipeView().environment(AppModel()).padding().frame(width: 700)
+    MigrationRecipeView().environment(\.appModel, AppModel()).padding().frame(width: 700)
 }

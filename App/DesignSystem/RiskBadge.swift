@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 extension RiskLevel {

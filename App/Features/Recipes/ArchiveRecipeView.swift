@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct ArchiveRecipeView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var projectID: String?
     @State private var vaultDestination: URL?
     @State private var archiveDirectory: URL?
@@ -103,5 +103,5 @@ struct ArchiveRecipeView: View {
 }
 
 #Preview {
-    ArchiveRecipeView().environment(AppModel()).padding().frame(width: 700)
+    ArchiveRecipeView().environment(\.appModel, AppModel()).padding().frame(width: 700)
 }

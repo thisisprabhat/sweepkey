@@ -1,14 +1,14 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct DashboardView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var disk = DiskInfo.current()
     @State private var hasFullDiskAccess = OnboardingAccessStep.hasAccess()
 
     var body: some View {
         ScrollView {
-            if !hasFullDiskAccess { fullDiskAccessBanner }
+            if !hasFullDiskAccess && !AppRuntime.demoMode { fullDiskAccessBanner }
             switch model.scanState {
             case .idle:
                 EmptyStateView("Ready to scan", symbolName: "sparkle.magnifyingglass",
@@ -43,7 +43,7 @@ struct DashboardView: View {
     private var fullDiskAccessBanner: some View {
         HStack(spacing: 10) {
             Image(systemName: "lock.trianglebadge.exclamationmark").foregroundStyle(.orange)
-            Text("Cleaner doesn't have Full Disk Access, so some caches and folders may be missed.")
+            Text("Sweepkey doesn't have Full Disk Access, so some caches and folders may be missed.")
                 .font(.callout)
             Spacer()
             Button("Grant Access…") {
@@ -76,15 +76,15 @@ struct DashboardView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Grid(horizontalSpacing: 14) {
-                GridRow {
-                    DiskUsageCard(disk: disk)
-                    StatTile(title: "Reclaimable", value: SizeFormat.string(model.reclaimableBytes),
-                             symbolName: "arrow.3.trianglepath")
-                    StatTile(title: "Freed so far", value: SizeFormat.string(model.lifetimeFreedBytes),
-                             symbolName: "checkmark.circle", tint: .green)
-                }
+            HStack(spacing: 14) {
+                DiskUsageCard(disk: disk)
+                StatTile(title: "Reclaimable", value: SizeFormat.string(model.reclaimableBytes),
+                         symbolName: "arrow.3.trianglepath",
+                         detail: "\(model.projects.filter { $0.reclaimableBytes > 0 }.count) projects and \(model.cacheGroups.count) cache groups")
+                StatTile(title: "Freed so far", value: SizeFormat.string(model.lifetimeFreedBytes),
+                         symbolName: "checkmark.circle", tint: .green, detail: "Across all cleanups")
             }
+            .fixedSize(horizontal: false, vertical: true)
             SectionHeaderView("By category", symbolName: "chart.pie")
             if model.breakdown.isEmpty {
                 Text("Nothing to reclaim.").foregroundStyle(.secondary)
@@ -100,5 +100,5 @@ struct DashboardView: View {
 }
 
 #Preview {
-    DashboardView().environment(AppModel()).frame(width: 800, height: 700)
+    DashboardView().environment(\.appModel, AppModel()).frame(width: 800, height: 700)
 }

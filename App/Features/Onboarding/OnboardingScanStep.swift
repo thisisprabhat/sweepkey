@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OnboardingScanStep: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
 
     var body: some View {
         VStack(spacing: 16) {
@@ -23,4 +23,4 @@ struct OnboardingScanStep: View {
     }
 }
 
-#Preview { OnboardingScanStep().environment(AppModel()).padding().frame(width: 520, height: 400) }
+#Preview { OnboardingScanStep().environment(\.appModel, AppModel()).padding().frame(width: 520, height: 400) }

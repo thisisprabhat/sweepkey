@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 import Observation
 
@@ -25,7 +25,7 @@ enum CleanPhase {
 final class AppModel {
     @ObservationIgnored let services: AppServices
 
-    var settings: CleanerSettings {
+    var settings: SweepkeySettings {
         didSet { persistSettings() }
     }
 
@@ -37,10 +37,10 @@ final class AppModel {
     @ObservationIgnored var scanTask: Task<Void, Never>?
     /// Bumped by every scan start and cancel; a scan only writes state while its token is current.
     @ObservationIgnored var scanGeneration = 0
-    /// Folders scanned on request (Services menu, `cleaner://scan?path=`) that are not scan roots.
+    /// Folders scanned on request (Services menu, `sweepkey://scan?path=`) that are not scan roots.
     /// They count as scan roots for safety checks until the next full scan.
     var temporaryScanRoots: [URL] = []
-    /// A `cleaner://scan?path=` request outside the scan roots, waiting for in-app confirmation.
+    /// A `sweepkey://scan?path=` request outside the scan roots, waiting for in-app confirmation.
     var pendingPathScan: [URL] = []
     /// Bumped after a clean so disk gauges re-read free space.
     var diskRefreshToken = 0
@@ -59,6 +59,8 @@ final class AppModel {
     // UI
     var showInspector = false
     var inspectedID: String?
+    /// Projects being rescanned on their own (Rescan This Project), for their spinners.
+    var rescanningProjects: Set<Project.ID> = []
 
     // Clean flow
     var cleanPhase: CleanPhase = .idle

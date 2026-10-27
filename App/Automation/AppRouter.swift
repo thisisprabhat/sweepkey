@@ -11,7 +11,7 @@ enum AppRouter {
             model.addScanRoots([url])
             return
         }
-        guard url.scheme == "cleaner" else { return }
+        guard url.scheme == "sweepkey" else { return }
         showApp()
         AutomationLog.info("handling URL \(url.absoluteString)")
         switch url.host {
@@ -40,13 +40,13 @@ enum AppRouter {
     /// Opens the window (creating it if needed) via the app's own URL scheme.
     static func openCleanSafe() {
         showApp()
-        if let url = URL(string: "cleaner://clean-safe") { NSWorkspace.shared.open(url) }
+        if let url = URL(string: "sweepkey://clean-safe") { NSWorkspace.shared.open(url) }
     }
 }
 
-/// Services menu provider: "Scan with Cleaner" for folders selected in Finder.
+/// Services menu provider: "Scan with Sweepkey" for folders selected in Finder.
 final class ServicesProvider: NSObject {
-    @objc func scanWithCleaner(
+    @objc func scanWithSweepkey(
         _ pasteboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString>
     ) {
         let urls = (pasteboard.readObjects(

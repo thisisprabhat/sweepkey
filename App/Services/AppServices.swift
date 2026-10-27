@@ -1,4 +1,4 @@
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 /// Bundled-rule source for the Rules screen. A later task wires the real catalog.

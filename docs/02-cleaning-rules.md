@@ -26,7 +26,7 @@ Ambiguous names get specific markers: Flutter `build` needs `pubspec.yaml`; Grad
 
 ### Rule JSON schema
 
-A rule is the JSON encoding of the `Rule` struct (`Core/Models.swift`). The bundled catalog is a JSON array of rules at `Sources/CleanerKit/Resources/rules.json`.
+A rule is the JSON encoding of the `Rule` struct (`Core/Models.swift`). The bundled catalog is a JSON array of rules at `Sources/SweepkeyKit/Resources/rules.json`.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -63,7 +63,7 @@ Catalog conventions: `*` rules are `enabledByDefault: false` with `risk: caution
 ### Customization
 - Custom rule editor: add a rule with a marker, globs and risk level (validated with `RuleSet.validate`; a `.git` target is rejected). A live preview of what it would match, and rule import/export, are planned for v1.1 ([08](08-roadmap.md)).
 - Per-rule enable/disable overrides (`ruleOverrides`, ruleID to enabled) and custom rules (`customRules`) are stored in settings.
-- Per-project `.cleanerignore` and a global exclude list. Projects can be pinned so they are never cleaned.
+- Per-project `.sweepkeyignore` and a global exclude list. Projects can be pinned so they are never cleaned.
 
 ## Global developer caches (outside projects)
 

@@ -1,8 +1,8 @@
-import CleanerKit
+import SweepkeyKit
 import SwiftUI
 
 struct CleanResultView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     let report: CleanReport
 
     private var failures: [CleanItemResult] { report.items.filter { $0.status == .failed } }
@@ -22,7 +22,11 @@ struct CleanResultView: View {
                 Text("\(SizeFormat.string(report.items.reduce(0) { $0 + $1.freedBytes })) would be freed. Nothing was deleted.")
                     .foregroundStyle(.secondary)
             } else {
-                Text("\(SizeFormat.string(report.freedBytes)) freed").font(.title.weight(.semibold)).monospacedDigit()
+                // Unmeasurable items freed an unknown amount, so the measured total is only a floor.
+                Text(approximate.isEmpty
+                    ? "\(SizeFormat.string(report.freedBytes)) freed"
+                    : "At least \(SizeFormat.string(report.freedBytes)) freed")
+                    .font(.title.weight(.semibold)).monospacedDigit()
                 Text(report.mode == .trash ? "Items were moved to the Trash." : "Items were deleted permanently.")
                     .foregroundStyle(.secondary)
                 if let delta = model.cleanFreeSpace {
@@ -79,5 +83,5 @@ struct CleanResultView: View {
 #Preview {
     let items = MockData.projects[0].candidates.map { CleanItemResult(candidate: $0, status: .cleaned, freedBytes: $0.sizeBytes) }
     CleanResultView(report: CleanReport(startedAt: .now, finishedAt: .now, mode: .trash, dryRun: false, items: items))
-        .environment(AppModel()).frame(width: 560)
+        .environment(\.appModel, AppModel()).frame(width: 560)
 }

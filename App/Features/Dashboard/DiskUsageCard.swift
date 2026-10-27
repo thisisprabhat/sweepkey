@@ -21,7 +21,7 @@ struct DiskUsageCard: View {
                 Text("Unavailable").foregroundStyle(.secondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)

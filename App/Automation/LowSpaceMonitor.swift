@@ -1,5 +1,5 @@
 import AppKit
-import CleanerKit
+import SweepkeyKit
 import Foundation
 
 /// Checks free space every 15 minutes and on wake; alerts at most once every 6 hours.
@@ -8,15 +8,15 @@ final class LowSpaceMonitor {
     private let model: AppModel
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
-    private static let lastAlertKey = "CleanerLastLowSpaceAlert"
+    private static let lastAlertKey = "SweepkeyLastLowSpaceAlert"
 
     init(model: AppModel) { self.model = model }
 
-    /// DEBUG only: `-CleanerLowSpaceThresholdGB <n>` overrides the stored threshold.
+    /// DEBUG only: `-SweepkeyLowSpaceThresholdGB <n>` overrides the stored threshold.
     private var thresholdGB: Int {
         #if DEBUG
-        if UserDefaults.standard.object(forKey: "CleanerLowSpaceThresholdGB") != nil {
-            return UserDefaults.standard.integer(forKey: "CleanerLowSpaceThresholdGB")
+        if UserDefaults.standard.object(forKey: "SweepkeyLowSpaceThresholdGB") != nil {
+            return UserDefaults.standard.integer(forKey: "SweepkeyLowSpaceThresholdGB")
         }
         #endif
         return model.settings.lowSpaceThresholdGB

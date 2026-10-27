@@ -22,10 +22,12 @@ struct VaultView: View {
             case .restore: VaultRestoreView()
             }
         }
+        // Pin to the top; a shorter screen (empty state) would otherwise float in the middle.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Vault")
     }
 }
 
 #Preview {
-    VaultView().environment(AppModel()).frame(width: 860, height: 640)
+    VaultView().environment(\.appModel, AppModel()).frame(width: 860, height: 640)
 }

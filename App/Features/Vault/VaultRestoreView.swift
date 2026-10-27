@@ -1,14 +1,14 @@
-import CleanerKit
+import SweepkeyKit
 import OSLog
 import SwiftUI
 
 struct VaultRestoreView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.appModel) private var model
     @State private var pendingEncrypted: URL?
     @State private var password = ""
     @State private var hasSavedPassword = false
     @State private var confirmingRestore = false
-    private static let log = Logger(subsystem: "com.prabhatkumar.Cleaner", category: "keychain")
+    private static let log = Logger(subsystem: "com.prabhatkumar.Sweepkey", category: "keychain")
 
     private enum StrategyKind: Hashable { case original, gitRemote }
 
@@ -154,5 +154,5 @@ struct VaultRestoreView: View {
 }
 
 #Preview {
-    VaultRestoreView().environment(AppModel()).frame(width: 860, height: 640)
+    VaultRestoreView().environment(\.appModel, AppModel()).frame(width: 860, height: 640)
 }

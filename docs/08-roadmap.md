@@ -4,7 +4,7 @@
 
 ## Delivery phases
 0. **Docs first**: this documentation set (Task 12).
-1. **Foundation**: repo, Xcode project, `CleanerKit` package, CI, app shell with sidebar and glass components.
+1. **Foundation**: repo, Xcode project, `SweepkeyKit` package, CI, app shell with sidebar and glass components.
 2. **MVP clean**: walker, rules engine for top ecosystems (JS, Python, Flutter, Android, Rust, Swift/iOS, Maven), SafetyGuard, Projects view, confirmation sheet, delete/trash, journal, CLI `scan`/`clean`.
 3. **Vault**: git-aware detection, patterns plus always-collect (`pubspec.yaml`), mirror layout, manifest, three export formats, restore by path and git remote.
 4. **Global caches**: Xcode, simulators, Gradle and SDK, package managers, Docker, version managers.
