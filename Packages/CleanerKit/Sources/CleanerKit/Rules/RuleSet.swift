@@ -11,9 +11,13 @@ public struct RuleSet: Sendable {
 
     /// The built-in rules shipped in `Resources/rules.json`.
     public static func bundled() throws -> [Rule] {
-        guard let url = Bundle.module.url(forResource: "rules", withExtension: "json") else {
-            throw LoadError.resourceMissing
-        }
+        // Shipped binaries: resolve beside the real executable. `Bundle.module` traps (fatalError)
+        // when its bundle is missing, so it is only consulted in debug builds (tests, `swift run`).
+        var found = RuleResources.rulesURL()
+        #if DEBUG
+        if found == nil { found = Bundle.module.url(forResource: "rules", withExtension: "json") }
+        #endif
+        guard let url = found else { throw LoadError.resourceMissing }
         return try JSONDecoder().decode([Rule].self, from: Data(contentsOf: url))
     }
 

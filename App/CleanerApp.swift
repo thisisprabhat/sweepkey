@@ -27,6 +27,7 @@ final class CleanerAppDelegate: NSObject, NSApplicationDelegate {
 struct CleanerApp: App {
     @NSApplicationDelegateAdaptor(CleanerAppDelegate.self) private var delegate
     @State private var model = AppModel.shared
+    @StateObject private var updater = UpdaterController()
 
     var body: some Scene {
         WindowGroup(id: "main") {
@@ -44,7 +45,10 @@ struct CleanerApp: App {
             }
             .onOpenURL { AppRouter.handle($0, model: model) }
         }
-        .commands { AppCommands(model: model) }
+        .commands {
+            AppCommands(model: model)
+            CommandGroup(after: .appInfo) { CheckForUpdatesView(updater: updater) }
+        }
 
         Settings {
             SettingsView()

@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case dashboard, projects, caches, vault, history, rules
+    case dashboard, projects, caches, vault, history, rules, recipes
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .vault: "Vault"
         case .history: "History"
         case .rules: "Rules"
+        case .recipes: "Recipes"
         }
     }
 
@@ -24,6 +25,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .vault: "lock.shield"
         case .history: "clock.arrow.circlepath"
         case .rules: "list.bullet.rectangle"
+        case .recipes: "wand.and.stars"
         }
     }
 }
@@ -48,6 +50,7 @@ struct RootView: View {
             case .vault: VaultView()
             case .history: HistoryView()
             case .rules: RulesView()
+            case .recipes: RecipesView()
             }
         }
         .frame(minWidth: 900, minHeight: 560)

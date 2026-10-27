@@ -1,0 +1,96 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    env:
+      KEYCHAIN: ${{ github.workspace }}/release.keychain-db
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+
+      - name: Import Developer ID certificate into a temporary keychain
+        env:
+          DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$DEVELOPER_ID_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$DEVELOPER_ID_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN" >/dev/null
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Store notarytool credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials cleaner-notary --keychain "$KEYCHAIN" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" >/dev/null
+
+      - name: Build, sign, notarize and package (scripts/release.sh)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
+          NOTARY_PROFILE: cleaner-notary
+        run: |
+          set -euo pipefail
+          scripts/release.sh "${GITHUB_REF_NAME#v}" "$GITHUB_RUN_NUMBER" build/release
+
+      - name: Generate signed appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_TARBALL_SHA256: 50612a06038abc931f16011d7903b8326a362c1074dabccb718404ce8e585f0b
+        run: |
+          set -euo pipefail
+          VERSION=${GITHUB_REF_NAME#v}
+          # generate_appcast ships with the Sparkle package resolved by xcodebuild.
+          TOOL=$(find ~/Library/Developer/Xcode/DerivedData build -path '*Sparkle*' -name generate_appcast -type f 2>/dev/null | head -1)
+          if [ -z "$TOOL" ]; then
+            curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz" -o "$RUNNER_TEMP/sparkle.tar.xz"
+            echo "$SPARKLE_TARBALL_SHA256  $RUNNER_TEMP/sparkle.tar.xz" | shasum -a 256 -c -
+            mkdir -p "$RUNNER_TEMP/sparkle" && tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+            TOOL="$RUNNER_TEMP/sparkle/bin/generate_appcast"
+          fi
+          mkdir -p appcast-in && cp "build/release/dist/Cleaner-$VERSION.dmg" appcast-in/
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOL" --ed-key-file - \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/" \
+            -o build/release/dist/appcast.xml appcast-in
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=${GITHUB_REF_NAME#v}
+          gh release create "$GITHUB_REF_NAME" --generate-notes \
+            "build/release/dist/Cleaner-$VERSION.dmg" build/release/dist/appcast.xml "build/release/dist/cleaner-$VERSION-macos.zip"
+
+      - name: Print cask sha256
+        run: |
+          set -euo pipefail
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "Cask version: $VERSION"
+          echo "Cask sha256:  $(shasum -a 256 "build/release/dist/Cleaner-$VERSION.dmg" | cut -d' ' -f1)"
+
+      - name: Delete temporary keychain
+        if: always()
+        run: |
+          set -uo pipefail
+          security delete-keychain "$KEYCHAIN" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/cert.p12"
