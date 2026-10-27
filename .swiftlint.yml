@@ -1,0 +1,31 @@
+included:
+  - App
+  - Packages/CleanerKit/Sources
+excluded:
+  - .build
+  - Packages/CleanerKit/.build
+disabled_rules:
+  - trailing_comma
+  - todo
+  - identifier_name
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+file_length:
+  warning: 600
+  error: 1200
+function_body_length:
+  warning: 80
+  error: 160
+type_body_length:
+  warning: 400
+  error: 800
+cyclomatic_complexity:
+  warning: 15
+  error: 30
+nesting:
+  type_level: 3

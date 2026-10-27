@@ -5,6 +5,9 @@ options:
 packages:
   CleanerKit:
     path: Packages/CleanerKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.prabhatkumar.Cleaner
@@ -16,14 +19,25 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
     CODE_SIGN_STYLE: Automatic
+    # Set by the release workflow; empty disables the updater.
+    SPARKLE_PUBLIC_KEY: ""
+    SPARKLE_FEED_URL: https://github.com/OWNER/cleaner/releases/latest/download/appcast.xml
 targets:
   Cleaner:
     type: application
     platform: macOS
     sources: [App]
+    info:
+      path: App/Updates/Info.plist
+      properties:
+        SUPublicEDKey: $(SPARKLE_PUBLIC_KEY)
+        SUFeedURL: $(SPARKLE_FEED_URL)
+        SUEnableAutomaticChecks: true
     dependencies:
       - package: CleanerKit
         product: CleanerKit
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct CleanerApp: App {
     @State private var model = AppModel()
+    @StateObject private var updater = UpdaterController()
 
     var body: some Scene {
         WindowGroup {
@@ -15,7 +16,10 @@ struct CleanerApp: App {
             }
             .environment(model)
         }
-        .commands { AppCommands(model: model) }
+        .commands {
+            AppCommands(model: model)
+            CommandGroup(after: .appInfo) { CheckForUpdatesView(updater: updater) }
+        }
 
         Settings {
             SettingsView()
