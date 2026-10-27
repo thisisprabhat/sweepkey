@@ -64,6 +64,19 @@ struct RootView: View {
         } message: {
             Text(model.lastError ?? "")
         }
+        .confirmationDialog(
+            "Scan \(model.pendingPathScan.count == 1 ? "this folder" : "these folders")?",
+            isPresented: Binding(get: { !model.pendingPathScan.isEmpty }, set: { if !$0 { model.pendingPathScan = [] } })
+        ) {
+            Button("Scan") {
+                let urls = model.pendingPathScan
+                model.pendingPathScan = []
+                Task { await model.scanPaths(urls) }
+            }
+            Button("Cancel", role: .cancel) { model.pendingPathScan = [] }
+        } message: {
+            Text("A link asked Cleaner to scan \(model.pendingPathScan.map(\.abbreviatingHome).joined(separator: ", ")), which is not one of your scan roots. Nothing is cleaned without your confirmation.")
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { handleDrop($0) }
         .task { await model.bootstrap() }
     }

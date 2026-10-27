@@ -111,23 +111,64 @@ extension AppModel {
 
     // MARK: Path scans
 
-    /// Scans only the given folders (used by `cleaner://scan` and the Services menu). Replaces the
-    /// shown results with them; does not add scan roots and does not overwrite the saved scan cache.
+    /// Entry point for folder scans requested from outside the window. `/`, the home folder and
+    /// system folders are refused. A folder outside the scan roots is scanned straight away from
+    /// the Services menu (the user picked it in Finder), but a `cleaner://` URL must be confirmed
+    /// in the app first.
+    func requestPathScan(_ urls: [URL], fromURL: Bool) {
+        let dirs = AppLogic.directories(from: urls)
+        guard !dirs.isEmpty else {
+            lastError = "No folder to scan."
+            return
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var allowed: [URL] = []
+        var needsConfirmation = false
+        for dir in dirs {
+            switch PathScanPolicy.decide(dir, scanRoots: settings.scanRoots, home: home) {
+            case .reject(let reason):
+                lastError = "\(dir.path): \(reason)"
+                AutomationLog.info("refused path scan of \(dir.path): \(reason)")
+            case .scan:
+                allowed.append(dir)
+            case .confirm:
+                allowed.append(dir)
+                needsConfirmation = true
+            }
+        }
+        guard !allowed.isEmpty else { return }
+        if needsConfirmation && fromURL {
+            pendingPathScan = allowed
+        } else {
+            Task { await scanPaths(allowed) }
+        }
+    }
+
+    /// Scans only the given folders and merges the results into the current list (projects at or
+    /// under those folders are replaced; everything else stays). Folders outside the scan roots
+    /// become temporary scan roots for safety checks, and their projects are not saved to the scan
+    /// cache, so the saved full scan is never replaced by a path-limited one.
     func scanPaths(_ urls: [URL]) async {
         let roots = AppLogic.directories(from: urls)
         guard !roots.isEmpty, !scanState.isScanning else { return }
         scanGeneration += 1
         let token = scanGeneration
         scanError = nil
-        projects = []
-        selection = []
+        let covered = AppLogic.resolve(settings.scanRoots)
+        for root in roots where !covered.contains(where: { root == $0 || root.isDescendant(of: $0) }) {
+            if !temporaryScanRoots.contains(root) { temporaryScanRoots.append(root) }
+        }
         scanState = .scanning(ScanProgress(directoriesVisited: 0, currentPath: "", projectsFound: 0, bytesFound: 0))
         let found = await collectProjects(in: roots) { [weak self] progress in
             guard let self, token == self.scanGeneration else { return }
             self.scanState = .scanning(progress)
         }
         guard token == scanGeneration else { return }
-        projects = found.projects
+        if found.failure == nil {
+            projects = ScanMerge.merge(existing: projects, found: found.projects, replacing: roots)
+            selection = selection.filter { id in allCandidates.contains { $0.id == id } }
+            await persistScanCache()
+        }
         scanError = found.failure
         scanState = .done(ScanSummary(
             projectCount: projects.count, candidateCount: projects.reduce(0) { $0 + $1.candidates.count },
@@ -144,12 +185,7 @@ extension AppModel {
         let roots = AppLogic.resolve(affected).filter { FileManager.default.fileExists(atPath: $0.path) }
         let found = await collectProjects(in: roots, progress: nil)
         guard !Task.isCancelled, found.failure == nil, !scanState.isScanning else { return false }
-        let all = AppLogic.resolve(affected)
-        projects.removeAll { project in
-            all.contains { project.url == $0 || project.url.isDescendant(of: $0) }
-        }
-        projects.append(contentsOf: found.projects)
-        projects.sort { $0.reclaimableBytes > $1.reclaimableBytes }
+        projects = ScanMerge.merge(existing: projects, found: found.projects, replacing: affected)
         selection = selection.filter { id in allCandidates.contains { $0.id == id } }
         await persistScanCache()
         return true

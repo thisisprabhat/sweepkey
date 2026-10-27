@@ -22,6 +22,11 @@ enum AppRuntime {
         settingsOverride?.deletingLastPathComponent().appendingPathComponent("journal.json") ?? AppPaths.journalFile
     }
 
+    /// Last-run dates of the scheduled jobs, next to the journal.
+    static var scheduleStateFile: URL {
+        journalFile.deletingLastPathComponent().appendingPathComponent("schedule.json")
+    }
+
     /// DEBUG only: `-CleanerAutoScan YES` starts a scan on launch.
     static var autoScan: Bool {
         #if DEBUG

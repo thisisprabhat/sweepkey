@@ -37,6 +37,11 @@ final class AppModel {
     @ObservationIgnored var scanTask: Task<Void, Never>?
     /// Bumped by every scan start and cancel; a scan only writes state while its token is current.
     @ObservationIgnored var scanGeneration = 0
+    /// Folders scanned on request (Services menu, `cleaner://scan?path=`) that are not scan roots.
+    /// They count as scan roots for safety checks until the next full scan.
+    var temporaryScanRoots: [URL] = []
+    /// A `cleaner://scan?path=` request outside the scan roots, waiting for in-app confirmation.
+    var pendingPathScan: [URL] = []
     /// Bumped after a clean so disk gauges re-read free space.
     var diskRefreshToken = 0
 

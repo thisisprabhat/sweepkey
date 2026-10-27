@@ -109,12 +109,20 @@ public struct SettingsStore: Sendable {
         self.fileURL = fileURL
     }
 
-    /// Defaults if the file is missing or corrupt.
+    /// Defaults if the file is missing or corrupt. A corrupt file is first moved aside to
+    /// `settings.corrupt-<ms>.json` (as the journal does), so the next save never silently
+    /// overwrites the user's scan roots, pins and rules.
     public func load() -> CleanerSettings {
-        guard let data = try? Data(contentsOf: fileURL),
-              let settings = try? JSONDecoder().decode(CleanerSettings.self, from: data)
-        else { return CleanerSettings() }
-        return settings
+        guard let data = try? Data(contentsOf: fileURL) else { return CleanerSettings() }
+        do {
+            return try JSONDecoder().decode(CleanerSettings.self, from: data)
+        } catch {
+            let base = fileURL.deletingPathExtension().lastPathComponent
+            let aside = fileURL.deletingLastPathComponent().appendingPathComponent(
+                "\(base).corrupt-\(Int(Date().timeIntervalSince1970 * 1000)).json")
+            try? FileManager.default.moveItem(at: fileURL, to: aside)
+            return CleanerSettings()
+        }
     }
 
     /// Atomic write, pretty JSON, sorted keys.
