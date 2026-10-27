@@ -280,22 +280,76 @@ private func options(_ root: URL, git: Bool = false, _ tweak: (inout ScanOptions
 
     @Test func cancellationStopsTheScan() async throws {
         try await withTempDir { root in
-            for i in 0..<400 {
-                try mk(root.appendingPathComponent("d\(i)/e/f"))
+            for i in 0..<60 {
+                for j in 0..<20 { try mk(root.appendingPathComponent("d\(i)/e\(j)/f")) }
             }
             let s = scanner()
             let o = options(root)
-            let task = Task { () -> Bool in
+            let task = Task { () -> (sawProgress: Bool, finished: Bool) in
+                var saw = false
                 var finished = false
                 do {
                     for try await event in s.scan(o) {
-                        if case .finished = event { finished = true }
+                        switch event {
+                        case .progress:
+                            saw = true
+                            withUnsafeCurrentTask { $0?.cancel() }
+                        case .finished: finished = true
+                        case .project: break
+                        }
                     }
                 } catch {}
-                return finished
+                return (saw, finished)
             }
-            task.cancel()
-            #expect(await task.value == false)
+            let r = await task.value
+            #expect(r.sawProgress)
+            #expect(r.finished == false)
+        }
+    }
+
+    @Test func symlinkTargetsAreNeverCandidates() async throws {
+        try await withTempDir { root in
+            let outside = root.appendingPathComponent("outside")
+            try write(10, to: outside.appendingPathComponent("x"))
+            let b = root.appendingPathComponent("scan/bz")
+            try write(1, to: b.appendingPathComponent("WORKSPACE"))
+            try FileManager.default.createSymbolicLink(at: b.appendingPathComponent("bazel-out"), withDestinationURL: outside)
+            let js = root.appendingPathComponent("scan/js")
+            try write(1, to: js.appendingPathComponent("package.json"))
+            try FileManager.default.createSymbolicLink(at: js.appendingPathComponent("node_modules"), withDestinationURL: outside)
+            let fl = root.appendingPathComponent("scan/fl")
+            try write(1, to: fl.appendingPathComponent("pubspec.yaml"))
+            try mk(fl)
+            try FileManager.default.createSymbolicLink(at: fl.appendingPathComponent("ios"), withDestinationURL: outside)
+            let r = try await collect(scanner(), options(root.appendingPathComponent("scan")))
+            #expect(r.projects.isEmpty)
+        }
+    }
+
+    @Test func unityAndPhpNeedTheirMarkers() async throws {
+        try await withTempDir { root in
+            let u = root.appendingPathComponent("u")
+            try write(1, to: u.appendingPathComponent("Library/x"))
+            try write(1, to: u.appendingPathComponent("ProjectSettings/other.asset"))
+            let php = root.appendingPathComponent("php")
+            try write(1, to: php.appendingPathComponent("vendor/x"))
+            var r = try await collect(scanner(), options(root))
+            #expect(r.projects.isEmpty)
+            try write(1, to: u.appendingPathComponent("ProjectSettings/ProjectVersion.txt"))
+            try write(1, to: php.appendingPathComponent("composer.json"))
+            r = try await collect(scanner(), options(root))
+            #expect(Set(r.projects.flatMap { $0.candidates.map(\.ruleID) }) == ["unity.library", "php.vendor"])
+        }
+    }
+
+    @Test func disabledRuleTargetsAreNotDescended() async throws {
+        try await withTempDir { root in
+            let p = root.appendingPathComponent("go")
+            try write(1, to: p.appendingPathComponent("go.mod"))
+            try write(1, to: p.appendingPathComponent("vendor/inner/package.json"))
+            try write(1, to: p.appendingPathComponent("vendor/inner/node_modules/x"))
+            let r = try await collect(scanner(), options(root))
+            #expect(r.projects.isEmpty)
         }
     }
 
@@ -309,6 +363,9 @@ private func options(_ root: URL, git: Bool = false, _ tweak: (inout ScanOptions
             let snap = try #require(await cache.load())
             #expect(snap.projects == [p])
             #expect(snap.savedAt == when)
+            let frac = Date(timeIntervalSince1970: 1_700_000_100.123456)
+            try await cache.save([p], at: frac)
+            #expect(await cache.load()?.savedAt == frac)
         }
     }
 }

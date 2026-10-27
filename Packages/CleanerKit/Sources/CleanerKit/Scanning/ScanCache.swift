@@ -15,7 +15,6 @@ public actor ScanCache {
 
     public func save(_ projects: [Project], at date: Date = Date()) throws {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(Snapshot(savedAt: date, projects: projects))
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -26,7 +25,6 @@ public actor ScanCache {
     public func load() -> Snapshot? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(Snapshot.self, from: data)
     }
 }

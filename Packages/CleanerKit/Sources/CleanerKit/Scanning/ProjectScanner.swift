@@ -40,6 +40,8 @@ public struct ProjectScanner: ProjectScanning {
     // MARK: - Internals
 
     private struct WalkContext: Sendable {
+        /// Rules that are switched off; their targets are neither reported nor descended into.
+        var disabled: [Rule] = []
         var excluded: [String]
         var libraryPaths: Set<String>
     }
@@ -49,6 +51,7 @@ public struct ProjectScanner: ProjectScanning {
         var childDirs: [URL]
         var matches: [RuleMatch]
         var ignorePatterns: [String]
+        var suppressed: [URL]
     }
 
     private struct Draft: Sendable {
@@ -66,11 +69,30 @@ public struct ProjectScanner: ProjectScanning {
     private actor GitCache {
         private var tasks: [String: Task<GitInfo?, Never>] = [:]
 
+        private static func normalized(_ path: String) -> String {
+            path.hasPrefix("/private/") ? String(path.dropFirst("/private".count)) : path
+        }
+
+        /// A known repository root containing `dir`, unless a nested `.git` sits in between.
+        private func knownRoot(for dir: URL) -> String? {
+            var current = dir
+            while true {
+                let key = Self.normalized(current.path)
+                if tasks[key] != nil { return key }
+                if FileManager.default.fileExists(atPath: current.appendingPathComponent(".git").path) { return nil }
+                let parent = current.deletingLastPathComponent()
+                if parent.path == current.path || parent.path.isEmpty { return nil }
+                current = parent
+            }
+        }
+
         func info(forProject dir: URL, git: GitClient) async -> GitInfo? {
+            if let key = knownRoot(for: dir), let existing = tasks[key] { return await existing.value }
             guard let root = await git.repositoryRoot(containing: dir) else { return nil }
-            if let existing = tasks[root.path] { return await existing.value }
+            let key = Self.normalized(root.path)
+            if let existing = tasks[key] { return await existing.value }
             let task = Task { await git.info(forRepository: root) }
-            tasks[root.path] = task
+            tasks[key] = task
             return await task.value
         }
     }
@@ -107,6 +129,8 @@ public struct ProjectScanner: ProjectScanning {
             childDirs.append(child)
         }
         let matches = RuleMatcher.matches(in: dir, childNames: names, rules: rules)
+        let suppressed = context.disabled.isEmpty ? [] :
+            RuleMatcher.matches(in: dir, childNames: names, rules: context.disabled).flatMap(\.targets)
         var patterns: [String] = []
         if !matches.isEmpty, names.contains(".cleanerignore"),
            let text = try? String(contentsOf: dir.appendingPathComponent(".cleanerignore"), encoding: .utf8) {
@@ -120,7 +144,7 @@ public struct ProjectScanner: ProjectScanning {
                     return s
                 }
         }
-        return WalkResult(directory: dir, childDirs: childDirs, matches: matches, ignorePatterns: patterns)
+        return WalkResult(directory: dir, childDirs: childDirs, matches: matches, ignorePatterns: patterns, suppressed: suppressed)
     }
 
     private static func isIgnored(relative: String, patterns: [String]) -> Bool {
@@ -157,7 +181,9 @@ public struct ProjectScanner: ProjectScanning {
         let base = try rules ?? RuleSet.bundled()
         let active = RuleSet(rules: base).effectiveRules(
             overrides: options.ruleOverrides, custom: options.customRules)
+        let activeIDs = Set(active.map(\.id))
         let context = WalkContext(
+            disabled: (base + options.customRules).filter { !activeIDs.contains($0.id) },
             excluded: options.excludedPaths.flatMap { Self.pathForms($0) },
             libraryPaths: Set(Self.pathForms(home.appendingPathComponent("Library"))))
         let limit = max(1, options.maxConcurrency)
@@ -198,7 +224,7 @@ public struct ProjectScanner: ProjectScanning {
                 case .walked(let result):
                     visited += 1
                     dirsSinceProgress += 1
-                    var noDescend = Set<String>()
+                    var noDescend = Set(result.suppressed.map(\.path))
                     var targets: [(rule: Rule, url: URL)] = []
                     var markers: [URL] = []
                     var ecosystems: [String] = []

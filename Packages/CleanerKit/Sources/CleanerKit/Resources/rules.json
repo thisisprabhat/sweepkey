@@ -860,7 +860,7 @@
     "id": "unity.library",
     "ecosystemID": "unity",
     "markers": [
-      "ProjectSettings"
+      "ProjectSettings/ProjectVersion.txt"
     ],
     "target": "Library",
     "risk": "caution",
@@ -872,7 +872,7 @@
     "id": "unity.temp",
     "ecosystemID": "unity",
     "markers": [
-      "ProjectSettings"
+      "ProjectSettings/ProjectVersion.txt"
     ],
     "target": "Temp",
     "risk": "safe",
@@ -883,7 +883,7 @@
     "id": "unity.obj",
     "ecosystemID": "unity",
     "markers": [
-      "ProjectSettings"
+      "ProjectSettings/ProjectVersion.txt"
     ],
     "target": "Obj",
     "risk": "safe",

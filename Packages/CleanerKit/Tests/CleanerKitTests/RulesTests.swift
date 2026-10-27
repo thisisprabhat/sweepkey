@@ -47,6 +47,14 @@ import Testing
         #expect(!eff.contains { $0.id == "go.vendor" })
     }
 
+    @Test func customRuleReplacesBuiltInWithSameID() throws {
+        let set = RuleSet(rules: try RuleSet.bundled())
+        let mine = Rule(id: "javascript.node_modules", ecosystemID: "generic", markers: ["m"], target: "mods",
+                        risk: .safe, enabledByDefault: true)
+        let eff = set.effectiveRules(overrides: [:], custom: [mine])
+        #expect(eff.filter { $0.id == "javascript.node_modules" } == [mine])
+    }
+
     @Test func validateFlagsProblems() {
         let set = RuleSet(rules: [])
         func rule(id: String = "a", markers: [String] = ["m"], target: String = "t") -> Rule {

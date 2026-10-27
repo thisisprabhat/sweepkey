@@ -45,7 +45,22 @@ public enum RuleMatcher {
         return found
     }
 
+    /// True when `url` or any component between `dir` and it is a symlink.
+    private static func crossesSymlink(_ url: URL, from dir: URL) -> Bool {
+        var current = url
+        let base = dir.pathComponents.count
+        while current.pathComponents.count > base {
+            if current.isSymlink { return true }
+            current = current.deletingLastPathComponent()
+        }
+        return false
+    }
+
     private static func resolveTargets(_ target: String, in dir: URL, names: Set<String>) -> [URL] {
+        resolveRawTargets(target, in: dir, names: names).filter { !crossesSymlink($0, from: dir) }
+    }
+
+    private static func resolveRawTargets(_ target: String, in dir: URL, names: Set<String>) -> [URL] {
         let parts = target.split(separator: "/").map(String.init)
         guard let last = parts.last, !parts.contains(".."), !target.hasPrefix("/") else { return [] }
         let parentParts = parts.dropLast()

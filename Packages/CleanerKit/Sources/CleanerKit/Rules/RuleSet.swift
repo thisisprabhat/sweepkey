@@ -18,8 +18,10 @@ public struct RuleSet: Sendable {
     }
 
     /// Enabled rules only (an override wins over `enabledByDefault`), with custom rules appended.
+    /// A custom rule whose id equals a built-in replaces it.
     public func effectiveRules(overrides: [String: Bool], custom: [Rule]) -> [Rule] {
-        (rules + custom).filter { overrides[$0.id] ?? $0.enabledByDefault }
+        let customIDs = Set(custom.map(\.id))
+        return (rules.filter { !customIDs.contains($0.id) } + custom).filter { overrides[$0.id] ?? $0.enabledByDefault }
     }
 
     /// Human-readable problems with a rule; empty when it is valid.
